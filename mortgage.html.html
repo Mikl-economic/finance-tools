@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ипотечный калькулятор с досрочными платежами</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --text: #1e2430; --muted: #6b7280;
+    --accent: #3b6ef6; --accent2: #16a34a; --warn: #ef4444; --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+  .val { font-size: 0.95rem; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .kpi .t { font-size: 0.75rem; color: var(--muted); }
+  .kpi .v { font-size: 1.15rem; font-weight: 700; margin-top: 2px; }
+  .kpi .v.green { color: var(--accent2); }
+  .scen { margin-top: 4px; }
+  .scen table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .scen th { text-align: right; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .scen th:first-child, .scen td:first-child { text-align: left; }
+  .scen td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .scen td:last-child { color: var(--accent2); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+  .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .c0::before { background: #94a3b8; } .c1::before { background: #3b6ef6; } .c2::before { background: #f59e0b; }
+  .c3::before { background: #16a34a; } .c4::before { background: #ef4444; }
+  canvas { width: 100%; height: 320px; display: block; }
+  .foot { color: var(--muted); font-size: 0.75rem; margin-top: 12px; }
+  .hint { background: #eef4ff; border: 1px solid #c7d8ff; border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ипотечный калькулятор с досрочными платежами</h1>
+  <div class="sub">Аннуитетный платёж. Двигайте ползунки — расчёт обновляется мгновенно.</div>
+
+  <div class="card">
+    <div class="grid">
+      <div><label>Сумма кредита: <span class="val" id="v_amount"></span></label>
+        <input type="range" id="amount" min="300000" max="15000000" step="50000" value="5000000"></div>
+      <div><label>Ставка: <span class="val" id="v_rate"></span></label>
+        <input type="range" id="rate" min="4" max="30" step="0.1" value="14"></div>
+      <div><label>Срок: <span class="val" id="v_years"></span></label>
+        <input type="range" id="years" min="1" max="30" step="1" value="20"></div>
+      <div><label>Доплата в месяц: <span class="val" id="v_extra"></span></label>
+        <input type="range" id="extra" min="0" max="100000" step="1000" value="10000"></div>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpis"></div>
+
+  <div class="card scen" style="margin-top:16px">
+    <label style="font-size:0.9rem; color:var(--text); font-weight:600">Сценарии доплат</label>
+    <table id="scenTable"></table>
+  </div>
+
+  <div class="card">
+    <label style="font-size:0.9rem; font-weight:600">Остаток долга по месяцам</label>
+    <canvas id="chart"></canvas>
+    <div class="legend">
+      <span class="c0">Без досрочных</span><span class="c1">+5 тыс/мес</span>
+      <span class="c2">+10 тыс/мес</span><span class="c3">+20 тыс/мес</span><span class="c4">+50 тыс/мес</span>
+    </div>
+    <div class="foot">Ваш вариант доплаты выделен пунктиром на графике сценариев (синяя линия — 5 тыс, жёлтая — 10 тыс, зелёная — 20 тыс, красная — 50 тыс). Расчёт ориентировочный: банки пересчитывают график по своим правилам. Ставка зафиксирована на весь срок.</div>
+  </div>
+
+  <div class="hint">💡 Доплата всего 10 000 ₽ в месяц на типовом кредите 5 млн под 14% экономит несколько лет и миллионы рублей процентов — двигайте ползунок «доплата» и смотрите на разницу.</div>
+</div>
+
+<script>
+const fmt = n => new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 0}).format(Math.round(n)) + ' \u20BD';
+const fmtM = m => m >= 12 ? Math.floor(m/12) + ' г ' + (m%12) + ' мес' : m + ' мес';
+
+const SCEN = [0, 5000, 10000, 20000, 50000];
+
+function schedule(S, annualRate, years, extra) {
+  const i = annualRate/100/12, n = Math.round(years*12);
+  const pay = i === 0 ? S/n : S*i*Math.pow(1+i,n)/(Math.pow(1+i,n)-1);
+  let D = S, rows = [], totalInt = 0, m = 0;
+  while (D > 0.005 && m < n*3) {
+    m++;
+    const interest = D*i;
+    let principal = pay - interest + extra;
+    if (principal >= D) { principal = D; D = 0; } else D -= principal;
+    totalInt += interest;
+    rows.push({m, balance: Math.max(D,0), interest, principal});
+  }
+  return {pay, rows, months: rows.length, totalInt};
+}
+
+function draw() {
+  const S = +amount.value, r = +rate.value, Y = +years.value, X = +extra.value;
+  v_amount.textContent = fmt(S); v_rate.textContent = r + '%';
+  v_years.textContent = Y + ' лет'; v_extra.textContent = X ? fmt(X) + '/мес' : 'нет';
+
+  const base = schedule(S, r, Y, 0);
+  const mine = schedule(S, r, Y, X);
+  const savedM = base.months - mine.months;
+  const savedR = base.totalInt - mine.totalInt;
+
+  kpis.innerHTML =
+    '<div class="kpi"><div class="t">Платёж в месяц</div><div class="v">' + fmt(base.pay) + '</div></div>' +
+    '<div class="kpi"><div class="t">С доплатой ' + fmt(X) + '</div><div class="v">' + fmt(base.pay + X) + '</div></div>' +
+    '<div class="kpi"><div class="t">Переплата без досрочных</div><div class="v">' + fmt(base.totalInt) + '</div></div>' +
+    '<div class="kpi"><div class="t">Срок закроете за</div><div class="v">' + fmtM(mine.months) + '</div></div>' +
+    '<div class="kpi"><div class="t">Экономия времени</div><div class="v green">' + fmtM(savedM) + '</div></div>' +
+    '<div class="kpi"><div class="t">Экономия на процентах</div><div class="v green">' + fmt(savedR) + '</div></div>';
+
+  let rows = '<tr><th>Доплата</th><th>Платёж</th><th>Срок</th><th>Переплата</th><th>Экономия</th></tr>';
+  SCEN.forEach(x => {
+    const s = schedule(S, r, Y, x);
+    const mine_row = x === X;
+    rows += '<tr' + (mine_row ? ' style="background:#eef4ff;font-weight:600"' : '') + '>' +
+      '<td>' + (x ? fmt(x) : '—') + '</td>' +
+      '<td>' + fmt(s.pay + x) + '</td>' +
+      '<td>' + fmtM(s.months) + '</td>' +
+      '<td>' + fmt(s.totalInt) + '</td>' +
+      '<td>' + (x ? fmt(base.totalInt - s.totalInt) : '—') + '</td></tr>';
+  });
+  scenTable.innerHTML = rows;
+
+  // график
+  const cv = chart, dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = 320;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  const pad = {l: 70, r: 12, t: 10, b: 26};
+  const all = [base].concat(SCEN.slice(1).map(x => schedule(S,r,Y,x)));
+  const maxM = Math.max(...all.map(s => s.months));
+  const maxB = S;
+  const x2px = m => pad.l + (W-pad.l-pad.r)*m/maxM;
+  const y2px = b => pad.t + (H-pad.t-pad.b)*(1-b/maxB);
+  ctx.strokeStyle = '#e5e7eb'; ctx.fillStyle = '#6b7280'; ctx.font = '10px sans-serif';
+  for (let k=0;k<=5;k++) {
+    const b = maxB*k/5, y = y2px(b);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillText((b/1e6).toFixed(1) + ' млн', 4, y+3);
+  }
+  for (let k=0;k<=5;k++) {
+    const m = maxM*k/5, x = x2px(m);
+    ctx.fillText((m/12).toFixed(0) + ' л', x-8, H-8);
+  }
+  const colors = ['#94a3b8','#3b6ef6','#f59e0b','#16a34a','#ef4444'];
+  all.forEach((s,idx) => {
+    ctx.beginPath();
+    ctx.moveTo(x2px(0), y2px(S));
+    s.rows.forEach(row => ctx.lineTo(x2px(row.m), y2px(row.balance)));
+    ctx.strokeStyle = colors[idx];
+    if (idx === 0) ctx.setLineDash([]);
+    ctx.lineWidth = idx === 0 ? 2.5 : 1.6;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  // маркер выбранной доплаты
+  const activeIdx = SCEN.indexOf(X);
+  if (activeIdx > 0) {
+    const s = all[activeIdx];
+    const pts = s.rows.filter((_,j) => j % Math.ceil(s.months/40) === 0);
+    ctx.beginPath();
+    ctx.moveTo(x2px(0), y2px(S));
+    pts.forEach(row => ctx.lineTo(x2px(row.m), y2px(row.balance)));
+    ctx.strokeStyle = colors[activeIdx]; ctx.lineWidth = 3; ctx.setLineDash([6,4]); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+['amount','rate','years','extra'].forEach(id => document.getElementById(id).addEventListener('input', draw));
+window.addEventListener('resize', draw);
+draw();
+</script>
+</body>
+</html>
