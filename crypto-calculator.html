@@ -2,123 +2,193 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Калькулятор позиции</title>
+    <title>Калькулятор позиций — крипта и акции</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 0 15px; color: #24292e; background: #f6f8fa; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; color: #24292e; background: #f6f8fa; }
         h1 { text-align: center; margin-bottom: 5px; }
         .subtitle { text-align: center; color: #586069; margin-bottom: 25px; font-size: 0.9em; }
         .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        label { display: block; margin-top: 12px; font-weight: 600; }
-        input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        label { display: block; margin-top: 10px; font-weight: 600; font-size: 13px; }
+        input, select { width: 100%; padding: 9px; margin-top: 5px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         .row { display: flex; gap: 10px; }
         .col { flex: 1; }
-        .leverage-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-        .leverage-btn { padding: 6px 10px; background: #e1e4e8; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
-        .leverage-btn.active { background: #0366d6; color: #fff; }
-        .results { margin-top: 5px; }
-        .result-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .row-head { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+        .row-head .p-name { flex: 1; font-weight: 600; }
+        .del-btn { background: #ffebe9; color: #d73a49; border: none; border-radius: 6px; width: 34px; height: 36px; font-size: 18px; cursor: pointer; }
+        .del-btn:hover { background: #ffd6d3; }
+        .pos-card { border-left: 3px solid #0366d6; }
+        .row-res { margin-top: 12px; border-top: 1px dashed #e1e4e8; padding-top: 6px; }
+        .result-item { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
         .result-label { color: #586069; }
         .result-value { font-weight: 700; }
         .pos { color: #22863a; }
         .neg { color: #d73a49; }
+        .add-btn { width: 100%; padding: 12px; background: #fff; color: #0366d6; border: 2px dashed #0366d6; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 15px; }
+        .add-btn:hover { background: #f0f6ff; }
+        .total-card { border-top: 3px solid #24292e; }
+        .total-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; }
+        .total-value { font-weight: 700; font-size: 17px; }
     </style>
 </head>
 <body>
-    <h1>Калькулятор крипто-позиции</h1>
-    <p class="subtitle">Сумма позиции, плечо, PnL и маржа — без регистрации</p>
+    <h1>Калькулятор позиций</h1>
+    <p class="subtitle">Крипта и акции · плечо · PnL в рублях или долларах</p>
 
     <div class="card">
-        <label>Направление</label>
-        <select id="direction" style="width:100%; padding:10px; margin-top:6px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
-            <option value="long">Лонг (рост цены)</option>
-            <option value="short">Шорт (падение цены)</option>
+        <label>Итоговая валюта (в ней сводим всё)</label>
+        <select id="baseCurrency">
+            <option value="USD">Доллар ($)</option>
+            <option value="RUB">Рубль (₽)</option>
         </select>
-
-        <label>Сумма позиции, $</label>
-        <input type="number" id="positionSize" placeholder="Например, 10000" step="0.01" value="10000">
-
-        <label>Плечо</label>
-        <div class="leverage-buttons" id="leverageBtns"></div>
-
-        <div class="row">
-            <div class="col">
-                <label>Цена входа, $</label>
-                <input type="number" id="entryPrice" placeholder="Например, 65000" step="0.01" value="65000">
-            </div>
-            <div class="col">
-                <label>Цена выхода, $</label>
-                <input type="number" id="exitPrice" placeholder="Например, 70000" step="0.01" value="70000">
-            </div>
+        <div id="rateRow" style="display:none;">
+            <label>Курс доллара — рублей за 1 $</label>
+            <input type="number" id="usdRate" value="90" step="0.01">
         </div>
     </div>
 
-    <div class="card results">
-        <div class="result-item"><span class="result-label">Маржа (твой залог), $</span><span class="result-value" id="marginOut">—</span></div>
-        <div class="result-item"><span class="result-label">Количество актива</span><span class="result-value" id="amountOut">—</span></div>
-        <div class="result-item"><span class="result-label">PnL (прибыль/убыток), $</span><span class="result-value" id="pnlOut">—</span></div>
-        <div class="result-item"><span class="result-label">Доходность к марже (ROE)</span><span class="result-value" id="roeOut">—</span></div>
+    <div id="positions"></div>
+    <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
+
+    <div class="card total-card">
+        <div class="total-item"><span class="result-label">Суммарная маржа (своих денег)</span><span class="total-value" id="totalMargin">—</span></div>
+        <div class="total-item"><span class="result-label">Суммарный PnL</span><span class="total-value" id="totalPnl">—</span></div>
+        <div class="total-item"><span class="result-label">Общая доходность к марже (ROE)</span><span class="total-value" id="totalRoe">—</span></div>
     </div>
 
     <script>
-        const levContainer = document.getElementById('leverageBtns');
-        let currentLeverage = 10;
+        const LEVERAGES = [1, 2, 3, 5, 10, 20, 25, 50, 100];
 
-        [1, 2, 3, 5, 10, 20, 25, 50, 100].forEach(lev => {
-            const btn = document.createElement('button');
-            btn.className = 'leverage-btn' + (lev === 10 ? ' active' : '');
-            btn.innerText = '×' + lev;
-            btn.onclick = () => {
-                currentLeverage = lev;
-                document.querySelectorAll('.leverage-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                calc();
-            };
-            levContainer.appendChild(btn);
-        });
-
-        function fmt(n) {
-            return n.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        function symbol() {
+            return document.getElementById('baseCurrency').value === 'RUB' ? '₽' : '$';
+        }
+        function fmt(n, d) {
+            return n.toLocaleString('ru-RU', {minimumFractionDigits: (d === undefined ? 2 : d), maximumFractionDigits: (d === undefined ? 2 : d)});
+        }
+        function toBase(value, cur) {
+            const base = document.getElementById('baseCurrency').value;
+            const rate = parseFloat(document.getElementById('usdRate').value) || 90;
+            if (cur === base) return value;
+            if (base === 'RUB') return value * rate;
+            return value / rate;
         }
 
-        function calc() {
-            const direction = document.getElementById('direction').value;
-            const size = parseFloat(document.getElementById('positionSize').value) || 0;
-            const entry = parseFloat(document.getElementById('entryPrice').value) || 0;
-            const exit = parseFloat(document.getElementById('exitPrice').value) || 0;
-
-            if (size <= 0 || entry <= 0) {
-                document.getElementById('marginOut').innerText = '—';
-                document.getElementById('amountOut').innerText = '—';
-                document.getElementById('pnlOut').innerText = '—';
-                document.getElementById('roeOut').innerText = '—';
-                return;
-            }
-
-            const margin = size / currentLeverage;
-            const amount = size / entry;
-            let pnl = (exit - entry) * amount;
-            if (direction === 'short') pnl = -pnl;
-            const roe = (pnl / margin) * 100;
-
-            const marginEl = document.getElementById('marginOut');
-            marginEl.innerText = '$' + fmt(margin);
-
-            document.getElementById('amountOut').innerText = amount.toLocaleString('ru-RU', {maximumFractionDigits: 6}) + ' монет';
-
-            const pnlEl = document.getElementById('pnlOut');
-            pnlEl.innerText = (pnl >= 0 ? '+' : '−') + '$' + fmt(Math.abs(pnl));
-            pnlEl.className = 'result-value ' + (pnl >= 0 ? 'pos' : 'neg');
-
-            const roeEl = document.getElementById('roeOut');
-            roeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
-            roeEl.className = 'result-value ' + (roe >= 0 ? 'pos' : 'neg');
+        function addPosition() {
+            const levOptions = LEVERAGES.map(l => `<option value="${l}"${l === 10 ? ' selected' : ''}>×${l}</option>`).join('');
+            const div = document.createElement('div');
+            div.className = 'card pos-card';
+            div.innerHTML = `
+                <div class="row-head">
+                    <input type="text" class="p-name" placeholder="Название (BTC, SBER...)" value="BTC">
+                    <button class="del-btn" title="Удалить" onclick="removeRow(this)">×</button>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Валюта актива</label>
+                        <select class="p-currency">
+                            <option value="USD">$ — крипта, акции США</option>
+                            <option value="RUB">₽ — акции РФ</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label>Направление</label>
+                        <select class="p-direction">
+                            <option value="long">Лонг (рост)</option>
+                            <option value="short">Шорт (падение)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Сумма позиции</label>
+                        <input type="number" class="p-size" value="10000" step="0.01">
+                    </div>
+                    <div class="col">
+                        <label>Плечо</label>
+                        <select class="p-lev">${levOptions}</select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Цена входа</label>
+                        <input type="number" class="p-entry" value="65000" step="0.01">
+                    </div>
+                    <div class="col">
+                        <label>Цена выхода</label>
+                        <input type="number" class="p-exit" value="70000" step="0.01">
+                    </div>
+                </div>
+                <div class="row-res">
+                    <div class="result-item"><span class="result-label">Маржа (своих денег)</span><span class="result-value p-margin">—</span></div>
+                    <div class="result-item"><span class="result-label">Количество актива</span><span class="result-value p-amount">—</span></div>
+                    <div class="result-item"><span class="result-label">PnL</span><span class="result-value p-pnl">—</span></div>
+                </div>`;
+            document.getElementById('positions').appendChild(div);
+            div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', recalcAll));
+            recalcAll();
         }
 
-        ['positionSize', 'entryPrice', 'exitPrice', 'direction'].forEach(id => {
-            document.getElementById(id).addEventListener('input', calc);
-        });
+        function removeRow(btn) {
+            btn.closest('.pos-card').remove();
+            recalcAll();
+        }
 
-        calc();
+        function recalcAll() {
+            const base = document.getElementById('baseCurrency').value;
+            document.getElementById('rateRow').style.display = (base === 'RUB' || anyRub()) ? 'block' : 'none';
+
+            let totalMargin = 0, totalPnl = 0;
+
+            document.querySelectorAll('.pos-card').forEach(card => {
+                const cur = card.querySelector('.p-currency').value;
+                const dir = card.querySelector('.p-direction').value;
+                const size = parseFloat(card.querySelector('.p-size').value) || 0;
+                const lev = parseFloat(card.querySelector('.p-lev').value) || 1;
+                const entry = parseFloat(card.querySelector('.p-entry').value) || 0;
+                const exit = parseFloat(card.querySelector('.p-exit').value) || 0;
+
+                const margin = entry > 0 ? size / lev : 0;
+                const amount = entry > 0 ? size / entry : 0;
+                let pnl = entry > 0 ? (exit - entry) * amount : 0;
+                if (dir === 'short') pnl = -pnl;
+
+                const pnlBase = toBase(pnl, cur);
+                const marginBase = toBase(margin, cur);
+                totalMargin += marginBase;
+                totalPnl += pnlBase;
+
+                const curSym = cur === 'RUB' ? '₽' : '$';
+                card.querySelector('.p-margin').innerText = curSym + fmt(margin);
+                card.querySelector('.p-amount').innerText = amount.toLocaleString('ru-RU', {maximumFractionDigits: 6});
+
+                const pnlEl = card.querySelector('.p-pnl');
+                pnlEl.innerText = (pnl >= 0 ? '+' : '−') + curSym + fmt(Math.abs(pnl));
+                pnlEl.className = 'result-value p-pnl ' + (pnl >= 0 ? 'pos' : 'neg');
+            });
+
+            const sym = symbol();
+            const roe = totalMargin > 0 ? (totalPnl / totalMargin) * 100 : 0;
+
+            document.getElementById('totalMargin').innerText = sym + fmt(totalMargin);
+
+            const tp = document.getElementById('totalPnl');
+            tp.innerText = (totalPnl >= 0 ? '+' : '−') + sym + fmt(Math.abs(totalPnl));
+            tp.className = 'total-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
+
+            const tr = document.getElementById('totalRoe');
+            tr.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
+            tr.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+        }
+
+        function anyRub() {
+            let found = false;
+            document.querySelectorAll('.p-currency').forEach(el => { if (el.value === 'RUB') found = true; });
+            return found;
+        }
+
+        document.getElementById('baseCurrency').addEventListener('change', recalcAll);
+        document.getElementById('usdRate').addEventListener('input', recalcAll);
+
+        addPosition();
     </script>
 </body>
 </html>
