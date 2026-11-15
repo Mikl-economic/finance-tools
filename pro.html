@@ -140,40 +140,54 @@
         function symOf(cur) { return cur === 'RUB' ? '₽' : '$'; }
         function sign(n, str) { return (n >= 0 ? '+' : '−') + str; }
 
-        function addPosition() {
-            const levOptions = LEVERAGES.map(l => `<option value="${l}"${l === 10 ? ' selected' : ''}>×${l}</option>`).join('');
+               function addPosition() {
+            // копируем значения последней карточки, если она есть
+            const lastCard = document.querySelector('#positions .pos-card:last-child');
+            let v;
+            if (lastCard) {
+                const g = s => lastCard.querySelector(s).value;
+                v = {
+                    name: g('.p-name'), currency: g('.p-currency'), dir: g('.p-direction'),
+                    qty: g('.p-qty'), sum: g('.p-sum'), lev: g('.p-lev'), fee: g('.p-fee'),
+                    entry: g('.p-entry'), exit: g('.p-exit'), last: lastCard.dataset.last || 'qty'
+                };
+            } else {
+                v = { name: 'BTC', currency: 'USD', dir: 'long', qty: '0.15', sum: '9750', lev: '10', fee: '0.1', entry: '65000', exit: '70000', last: 'qty' };
+            }
+
+            const levOptions = LEVERAGES.map(l => `<option value="${l}"${String(l) === String(v.lev) ? ' selected' : ''}>×${l}</option>`).join('');
             const div = document.createElement('div');
             div.className = 'card pos-card';
-            div.dataset.last = 'qty';
+            div.dataset.last = v.last;
             div.innerHTML = `
                 <div class="row-head">
-                    <input type="text" class="p-name" placeholder="Название (BTC, SBER...)" value="BTC">
+                    <input type="text" class="p-name" placeholder="Название (BTC, SBER...)" value="${v.name}">
                     <button class="del-btn" title="Удалить" onclick="removeRow(this)">×</button>
                 </div>
                 <div class="row">
                     <div class="col">
                         <label>Валюта</label>
                         <select class="p-currency">
-                            <option value="USD">$ — крипта, акции США</option>
-                            <option value="RUB">₽ — акции РФ</option>
+                            <option value="USD"${v.currency === 'USD' ? ' selected' : ''}>$ — крипта, акции США</option>
+                            <option value="RUB"${v.currency === 'RUB' ? ' selected' : ''}>₽ — акции РФ</option>
                         </select>
                     </div>
                     <div class="col">
                         <label>Направление</label>
                         <select class="p-direction">
-                            <option value="long">Лонг (рост)</option>
-                            <option value="short">Шорт (падение)</option>
+                            <option value="long"${v.dir === 'long' ? ' selected' : ''}>Лонг (рост)</option>
+                            <option value="short"${v.dir === 'short' ? ' selected' : ''}>Шорт (падение)</option>
                         </select>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col">
                         <label>Количество</label>
-                        <input type="number" class="p-qty" value="0.15" step="any">
+                        <input type="number" class="p-qty" value="${v.qty}" step="any">
                     </div>
                     <div class="col">
                         <label>Сумма позиции</label>
-                        <input type="number" class="p-sum" value="9750" step="0.01">
+                        <input type="number" class="p-sum" value="${v.sum}" step="0.01">
                     </div>
                 </div>
                 <div class="row">
@@ -183,17 +197,17 @@
                     </div>
                     <div class="col">
                         <label>Комиссия, %</label>
-                        <input type="number" class="p-fee" value="0.1" step="0.01">
+                        <input type="number" class="p-fee" value="${v.fee}" step="0.01">
                     </div>
                 </div>
                 <div class="row">
                     <div class="col">
                         <label>Цена входа</label>
-                        <input type="number" class="p-entry" value="65000" step="0.01">
+                        <input type="number" class="p-entry" value="${v.entry}" step="0.01">
                     </div>
                     <div class="col">
                         <label>Цена выхода</label>
-                        <input type="number" class="p-exit" value="70000" step="0.01">
+                        <input type="number" class="p-exit" value="${v.exit}" step="0.01">
                     </div>
                 </div>
                 <div class="row-res">
@@ -210,6 +224,7 @@
             div.querySelector('.p-sum').addEventListener('input', () => { div.dataset.last = 'sum'; recalcAll(); });
             recalcAll();
         }
+
 
         function removeRow(btn) {
             btn.closest('.pos-card').remove();
