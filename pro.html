@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>PRO — Калькулятор позиций</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; color: #24292e; background: #f6f8fa; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 0 15px; color: #24292e; background: #f6f8fa; }
         h1 { text-align: center; margin-bottom: 5px; }
         .subtitle { text-align: center; color: #586069; margin-bottom: 25px; font-size: 0.9em; }
         .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; }
@@ -25,6 +25,13 @@
         .neg { color: #d73a49; }
         .add-btn { width: 100%; padding: 12px; background: #fff; color: #7c3aed; border: 2px dashed #7c3aed; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 15px; }
         .add-btn:hover { background: #f5f0ff; }
+        .layout { display: flex; gap: 15px; align-items: flex-start; }
+        .main-col { flex: 1; min-width: 0; }
+        .side-col { width: 320px; flex-shrink: 0; position: sticky; top: 15px; }
+        .total-card { border-top: 3px solid #7c3aed; }
+        .risk-status { padding: 10px 12px; border-radius: 8px; font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+        .risk-ok { background: #e6f4ea; color: #22863a; }
+        .risk-bad { background: #ffebe9; color: #d73a49; }
         .total-section { padding: 10px 0; border-bottom: 1px solid #e1e4e8; }
         .total-section:last-child { border-bottom: none; }
         .total-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
@@ -38,6 +45,10 @@
         .gate-btn { width: 100%; margin-top: 15px; padding: 12px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
         .gate-btn:hover { background: #6d28d9; }
         .lock-note { color: #586069; font-size: 12px; margin-top: 12px; }
+        @media (max-width: 900px) {
+            .layout { flex-direction: column; }
+            .side-col { width: 100%; position: static; }
+        }
     </style>
 </head>
 <body>
@@ -57,44 +68,52 @@
         <h1>Калькулятор позиций PRO</h1>
         <p class="subtitle">Комиссии · риск-менеджмент · цена ликвидации</p>
 
-        <div class="card cap-card">
-            <div class="row">
-                <div class="col">
-                    <label>💵 Капитал, $</label>
-                    <input type="number" id="capUsd" value="1000" step="0.01">
-                    <label>Риск на сделку, %</label>
-                    <input type="number" id="riskUsd" value="2" step="0.1">
-                    <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskUsdOut">—</span></div>
+        <div class="layout">
+            <div class="main-col">
+                <div class="card cap-card">
+                    <div class="row">
+                        <div class="col">
+                            <label>💵 Капитал, $</label>
+                            <input type="number" id="capUsd" value="1000" step="0.01">
+                            <label>Риск на сделку, %</label>
+                            <input type="number" id="riskUsd" value="2" step="0.1">
+                            <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskUsdOut">—</span></div>
+                        </div>
+                        <div class="col">
+                            <label>🇷🇺 Капитал, ₽</label>
+                            <input type="number" id="capRub" value="100000" step="0.01">
+                            <label>Риск на сделку, %</label>
+                            <input type="number" id="riskRub" value="2" step="0.1">
+                            <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskRubOut">—</span></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col">
-                    <label>🇷🇺 Капитал, ₽</label>
-                    <input type="number" id="capRub" value="100000" step="0.01">
-                    <label>Риск на сделку, %</label>
-                    <input type="number" id="riskRub" value="2" step="0.1">
-                    <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskRubOut">—</span></div>
+
+                <div id="positions"></div>
+                <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
+            </div>
+
+            <div class="side-col">
+                <div class="card total-card">
+                    <div class="total-section">
+                        <div id="usdRiskStatus" class="risk-status">—</div>
+                        <div class="total-title">💵 Итог в долларах</div>
+                        <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="usdMargin">—</span></div>
+                        <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="usdFee">—</span></div>
+                        <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="usdPnl">—</span></div>
+                        <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="usdPnlNet">—</span></div>
+                        <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="usdRoe">—</span></div>
+                    </div>
+                    <div class="total-section">
+                        <div id="rubRiskStatus" class="risk-status">—</div>
+                        <div class="total-title">🇷🇺 Итог в рублях</div>
+                        <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="rubMargin">—</span></div>
+                        <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="rubFee">—</span></div>
+                        <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="rubPnl">—</span></div>
+                        <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="rubPnlNet">—</span></div>
+                        <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="rubRoe">—</span></div>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <div id="positions"></div>
-        <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
-
-        <div class="card">
-            <div class="total-section">
-                <div class="total-title">💵 Итог в долларах</div>
-                <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="usdMargin">—</span></div>
-                <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="usdFee">—</span></div>
-                <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="usdPnl">—</span></div>
-                <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="usdPnlNet">—</span></div>
-                <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="usdRoe">—</span></div>
-            </div>
-            <div class="total-section">
-                <div class="total-title">🇷🇺 Итог в рублях</div>
-                <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="rubMargin">—</span></div>
-                <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="rubFee">—</span></div>
-                <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="rubPnl">—</span></div>
-                <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="rubPnlNet">—</span></div>
-                <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="rubRoe">—</span></div>
             </div>
         </div>
     </div>
@@ -140,8 +159,7 @@
         function symOf(cur) { return cur === 'RUB' ? '₽' : '$'; }
         function sign(n, str) { return (n >= 0 ? '+' : '−') + str; }
 
-               function addPosition() {
-            // копируем значения последней карточки, если она есть
+        function addPosition() {
             const lastCard = document.querySelector('#positions .pos-card:last-child');
             let v;
             if (lastCard) {
@@ -225,15 +243,19 @@
             recalcAll();
         }
 
-
         function removeRow(btn) {
             btn.closest('.pos-card').remove();
             recalcAll();
         }
 
         function recalcAll() {
-            document.getElementById('riskUsdOut').innerText = '$' + fmt((parseFloat(document.getElementById('capUsd').value) || 0) * (parseFloat(document.getElementById('riskUsd').value) || 0) / 100);
-            document.getElementById('riskRubOut').innerText = '₽' + fmt((parseFloat(document.getElementById('capRub').value) || 0) * (parseFloat(document.getElementById('riskRub').value) || 0) / 100);
+            const capUsd = parseFloat(document.getElementById('capUsd').value) || 0;
+            const riskUsdPct = parseFloat(document.getElementById('riskUsd').value) || 0;
+            const capRub = parseFloat(document.getElementById('capRub').value) || 0;
+            const riskRubPct = parseFloat(document.getElementById('riskRub').value) || 0;
+
+            document.getElementById('riskUsdOut').innerText = '$' + fmt(capUsd * riskUsdPct / 100);
+            document.getElementById('riskRubOut').innerText = '₽' + fmt(capRub * riskRubPct / 100);
 
             let mUsd = 0, pUsd = 0, fUsd = 0, mRub = 0, pRub = 0, fRub = 0;
 
@@ -250,7 +272,6 @@
                 let qty = parseFloat(qtyIn.value) || 0;
                 let size = parseFloat(sumIn.value) || 0;
 
-                // синхронизация: заполняем то поле, которое не редактировали последним
                 if (card.dataset.last === 'qty' && entry > 0 && qty >= 0) {
                     size = qty * entry;
                     sumIn.value = size ? String(parseFloat(size.toFixed(2))) : '';
@@ -292,12 +313,23 @@
                 }
             });
 
-            updateTotal('usd', '$', mUsd, pUsd, fUsd);
-            updateTotal('rub', '₽', mRub, pRub, fRub);
+            updateTotal('usd', '$', mUsd, pUsd, fUsd, capUsd * riskUsdPct / 100);
+            updateTotal('rub', '₽', mRub, pRub, fRub, capRub * riskRubPct / 100);
         }
 
-        function updateTotal(id, prefix, margin, pnl, fee) {
-            const pnlNet = pnl - fee;
+        function updateTotal(id, prefix, margin, pnl, fee, riskAmount) {
+            const statusEl = document.getElementById(id + 'RiskStatus');
+            if (margin === 0) {
+                statusEl.className = 'risk-status';
+                statusEl.innerText = 'Нет позиций в этой валюте';
+            } else if (margin > riskAmount) {
+                statusEl.className = 'risk-status risk-bad';
+                statusEl.innerText = '⚠️ Риск превышает допустимую норму';
+            } else {
+                statusEl.className = 'risk-status risk-ok';
+                statusEl.innerText = '✅ Риск не превышает норму';
+            }
+
             document.getElementById(id + 'Margin').innerText = margin > 0 ? prefix + fmt(margin) : '—';
             document.getElementById(id + 'Fee').innerText = fee > 0 ? '−' + prefix + fmt(fee) : '—';
             const grossEl = document.getElementById(id + 'Pnl');
@@ -307,7 +339,8 @@
             grossEl.innerText = sign(pnl, prefix + fmt(Math.abs(pnl)));
             grossEl.className = 'total-value ' + (pnl >= 0 ? 'pos' : 'neg');
 
-            if (margin > 0 || pnlNet !== 0) {
+            if (margin > 0 || pnl - fee !== 0) {
+                const pnlNet = pnl - fee;
                 netEl.innerText = sign(pnlNet, prefix + fmt(Math.abs(pnlNet)));
                 netEl.className = 'total-value ' + (pnlNet >= 0 ? 'pos' : 'neg');
                 const roe = margin > 0 ? (pnlNet / margin) * 100 : 0;
