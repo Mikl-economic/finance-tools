@@ -25,51 +25,40 @@
         .neg { color: #d73a49; }
         .add-btn { width: 100%; padding: 12px; background: #fff; color: #0366d6; border: 2px dashed #0366d6; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 15px; }
         .add-btn:hover { background: #f0f6ff; }
-        .total-card { border-top: 3px solid #24292e; }
-        .total-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; }
-        .total-value { font-weight: 700; font-size: 17px; }
+        .total-section { padding: 10px 0; border-bottom: 1px solid #e1e4e8; }
+        .total-section:last-child { border-bottom: none; }
+        .total-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+        .total-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 15px; }
+        .total-value { font-weight: 700; font-size: 16px; }
     </style>
 </head>
 <body>
     <h1>Калькулятор позиций</h1>
-    <p class="subtitle">Крипта и акции · плечо · PnL в рублях или долларах</p>
-
-    <div class="card">
-        <label>Итоговая валюта (в ней сводим всё)</label>
-        <select id="baseCurrency">
-            <option value="USD">Доллар ($)</option>
-            <option value="RUB">Рубль (₽)</option>
-        </select>
-        <div id="rateRow" style="display:none;">
-            <label>Курс доллара — рублей за 1 $</label>
-            <input type="number" id="usdRate" value="90" step="0.01">
-        </div>
-    </div>
+    <p class="subtitle">Крипта и акции · плечо · вводишь количество — сумма считается сама</p>
 
     <div id="positions"></div>
     <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
 
-    <div class="card total-card">
-        <div class="total-item"><span class="result-label">Суммарная маржа (своих денег)</span><span class="total-value" id="totalMargin">—</span></div>
-        <div class="total-item"><span class="result-label">Суммарный PnL</span><span class="total-value" id="totalPnl">—</span></div>
-        <div class="total-item"><span class="result-label">Общая доходность к марже (ROE)</span><span class="total-value" id="totalRoe">—</span></div>
+    <div class="card">
+        <div class="total-section">
+            <div class="total-title">💵 Итог в долларах</div>
+            <div class="total-item"><span class="result-label">Маржа (своих денег)</span><span class="total-value" id="usdMargin">—</span></div>
+            <div class="total-item"><span class="result-label">Суммарный PnL</span><span class="total-value" id="usdPnl">—</span></div>
+            <div class="total-item"><span class="result-label">Доходность к марже (ROE)</span><span class="total-value" id="usdRoe">—</span></div>
+        </div>
+        <div class="total-section">
+            <div class="total-title">🇷🇺 Итог в рублях</div>
+            <div class="total-item"><span class="result-label">Маржа (своих денег)</span><span class="total-value" id="rubMargin">—</span></div>
+            <div class="total-item"><span class="result-label">Суммарный PnL</span><span class="total-value" id="rubPnl">—</span></div>
+            <div class="total-item"><span class="result-label">Доходность к марже (ROE)</span><span class="total-value" id="rubRoe">—</span></div>
+        </div>
     </div>
 
     <script>
         const LEVERAGES = [1, 2, 3, 5, 10, 20, 25, 50, 100];
 
-        function symbol() {
-            return document.getElementById('baseCurrency').value === 'RUB' ? '₽' : '$';
-        }
-        function fmt(n, d) {
-            return n.toLocaleString('ru-RU', {minimumFractionDigits: (d === undefined ? 2 : d), maximumFractionDigits: (d === undefined ? 2 : d)});
-        }
-        function toBase(value, cur) {
-            const base = document.getElementById('baseCurrency').value;
-            const rate = parseFloat(document.getElementById('usdRate').value) || 90;
-            if (cur === base) return value;
-            if (base === 'RUB') return value * rate;
-            return value / rate;
+        function fmt(n) {
+            return n.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         function addPosition() {
@@ -83,7 +72,7 @@
                 </div>
                 <div class="row">
                     <div class="col">
-                        <label>Валюта актива</label>
+                        <label>Валюта</label>
                         <select class="p-currency">
                             <option value="USD">$ — крипта, акции США</option>
                             <option value="RUB">₽ — акции РФ</option>
@@ -99,8 +88,8 @@
                 </div>
                 <div class="row">
                     <div class="col">
-                        <label>Сумма позиции</label>
-                        <input type="number" class="p-size" value="10000" step="0.01">
+                        <label>Количество актива</label>
+                        <input type="number" class="p-qty" value="0.15" step="any">
                     </div>
                     <div class="col">
                         <label>Плечо</label>
@@ -118,8 +107,8 @@
                     </div>
                 </div>
                 <div class="row-res">
+                    <div class="result-item"><span class="result-label">Сумма позиции</span><span class="result-value p-size">—</span></div>
                     <div class="result-item"><span class="result-label">Маржа (своих денег)</span><span class="result-value p-margin">—</span></div>
-                    <div class="result-item"><span class="result-label">Количество актива</span><span class="result-value p-amount">—</span></div>
                     <div class="result-item"><span class="result-label">PnL</span><span class="result-value p-pnl">—</span></div>
                 </div>`;
             document.getElementById('positions').appendChild(div);
@@ -133,60 +122,65 @@
         }
 
         function recalcAll() {
-            const base = document.getElementById('baseCurrency').value;
-            document.getElementById('rateRow').style.display = (base === 'RUB' || anyRub()) ? 'block' : 'none';
-
-            let totalMargin = 0, totalPnl = 0;
+            let mUsd = 0, pUsd = 0, mRub = 0, pRub = 0;
 
             document.querySelectorAll('.pos-card').forEach(card => {
                 const cur = card.querySelector('.p-currency').value;
                 const dir = card.querySelector('.p-direction').value;
-                const size = parseFloat(card.querySelector('.p-size').value) || 0;
+                const qty = parseFloat(card.querySelector('.p-qty').value) || 0;
                 const lev = parseFloat(card.querySelector('.p-lev').value) || 1;
                 const entry = parseFloat(card.querySelector('.p-entry').value) || 0;
                 const exit = parseFloat(card.querySelector('.p-exit').value) || 0;
 
-                const margin = entry > 0 ? size / lev : 0;
-                const amount = entry > 0 ? size / entry : 0;
-                let pnl = entry > 0 ? (exit - entry) * amount : 0;
+                const size = qty * entry;
+                const margin = size / lev;
+                let pnl = (exit - entry) * qty;
                 if (dir === 'short') pnl = -pnl;
 
-                const pnlBase = toBase(pnl, cur);
-                const marginBase = toBase(margin, cur);
-                totalMargin += marginBase;
-                totalPnl += pnlBase;
+                if (cur === 'USD') { mUsd += margin; pUsd += pnl; }
+                else { mRub += margin; pRub += pnl; }
 
-                const curSym = cur === 'RUB' ? '₽' : '$';
-                card.querySelector('.p-margin').innerText = curSym + fmt(margin);
-                card.querySelector('.p-amount').innerText = amount.toLocaleString('ru-RU', {maximumFractionDigits: 6});
+                const sym = cur === 'RUB' ? '₽' : '$';
+                card.querySelector('.p-size').innerText = sym + fmt(size);
+                card.querySelector('.p-margin').innerText = sym + fmt(margin);
 
                 const pnlEl = card.querySelector('.p-pnl');
-                pnlEl.innerText = (pnl >= 0 ? '+' : '−') + curSym + fmt(Math.abs(pnl));
+                pnlEl.innerText = (pnl >= 0 ? '+' : '−') + sym + fmt(Math.abs(pnl));
                 pnlEl.className = 'result-value p-pnl ' + (pnl >= 0 ? 'pos' : 'neg');
             });
 
-            const sym = symbol();
-            const roe = totalMargin > 0 ? (totalPnl / totalMargin) * 100 : 0;
+            // итог в долларах
+            document.getElementById('usdMargin').innerText = mUsd > 0 ? '$' + fmt(mUsd) : '—';
+            const usdPnlEl = document.getElementById('usdPnl');
+            if (mUsd > 0 || pUsd !== 0) {
+                usdPnlEl.innerText = (pUsd >= 0 ? '+' : '−') + '$' + fmt(Math.abs(pUsd));
+                usdPnlEl.className = 'total-value ' + (pUsd >= 0 ? 'pos' : 'neg');
+                const roe = mUsd > 0 ? (pUsd / mUsd) * 100 : 0;
+                const usdRoeEl = document.getElementById('usdRoe');
+                usdRoeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
+                usdRoeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+            } else {
+                usdPnlEl.innerText = '—'; usdPnlEl.className = 'total-value';
+                document.getElementById('usdRoe').innerText = '—';
+                document.getElementById('usdRoe').className = 'total-value';
+            }
 
-            document.getElementById('totalMargin').innerText = sym + fmt(totalMargin);
-
-            const tp = document.getElementById('totalPnl');
-            tp.innerText = (totalPnl >= 0 ? '+' : '−') + sym + fmt(Math.abs(totalPnl));
-            tp.className = 'total-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
-
-            const tr = document.getElementById('totalRoe');
-            tr.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
-            tr.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+            // итог в рублях
+            document.getElementById('rubMargin').innerText = mRub > 0 ? '₽' + fmt(mRub) : '—';
+            const rubPnlEl = document.getElementById('rubPnl');
+            if (mRub > 0 || pRub !== 0) {
+                rubPnlEl.innerText = (pRub >= 0 ? '+' : '−') + '₽' + fmt(Math.abs(pRub));
+                rubPnlEl.className = 'total-value ' + (pRub >= 0 ? 'pos' : 'neg');
+                const roe = mRub > 0 ? (pRub / mRub) * 100 : 0;
+                const rubRoeEl = document.getElementById('rubRoe');
+                rubRoeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
+                rubRoeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+            } else {
+                rubPnlEl.innerText = '—'; rubPnlEl.className = 'total-value';
+                document.getElementById('rubRoe').innerText = '—';
+                document.getElementById('rubRoe').className = 'total-value';
+            }
         }
-
-        function anyRub() {
-            let found = false;
-            document.querySelectorAll('.p-currency').forEach(el => { if (el.value === 'RUB') found = true; });
-            return found;
-        }
-
-        document.getElementById('baseCurrency').addEventListener('change', recalcAll);
-        document.getElementById('usdRate').addEventListener('input', recalcAll);
 
         addPosition();
     </script>
