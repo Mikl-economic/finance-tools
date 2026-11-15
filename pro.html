@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>PRO — Калькулятор позиций</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; color: #24292e; background: #f6f8fa; }
+        h1 { text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #586069; margin-bottom: 25px; font-size: 0.9em; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        label { display: block; margin-top: 10px; font-weight: 600; font-size: 13px; }
+        input, select { width: 100%; padding: 9px; margin-top: 5px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .row { display: flex; gap: 10px; }
+        .col { flex: 1; }
+        .row-head { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+        .row-head .p-name { flex: 1; font-weight: 600; }
+        .del-btn { background: #ffebe9; color: #d73a49; border: none; border-radius: 6px; width: 34px; height: 36px; font-size: 18px; cursor: pointer; }
+        .del-btn:hover { background: #ffd6d3; }
+        .pos-card { border-left: 3px solid #7c3aed; }
+        .row-res { margin-top: 12px; border-top: 1px dashed #e1e4e8; padding-top: 6px; }
+        .result-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+        .result-label { color: #586069; }
+        .result-value { font-weight: 700; }
+        .pos { color: #22863a; }
+        .neg { color: #d73a49; }
+        .add-btn { width: 100%; padding: 12px; background: #fff; color: #7c3aed; border: 2px dashed #7c3aed; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 15px; }
+        .add-btn:hover { background: #f5f0ff; }
+        .total-section { padding: 10px 0; border-bottom: 1px solid #e1e4e8; }
+        .total-section:last-child { border-bottom: none; }
+        .total-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+        .total-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 15px; }
+        .total-value { font-weight: 700; font-size: 16px; }
+        .cap-card { border-top: 3px solid #0366d6; }
+        .gate { position: fixed; inset: 0; background: #f6f8fa; display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .gate-card { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); max-width: 340px; width: 90%; text-align: center; }
+        .gate-card h1 { font-size: 22px; margin-bottom: 5px; }
+        .gate-card input { margin-top: 15px; text-align: center; letter-spacing: 1px; }
+        .gate-btn { width: 100%; margin-top: 15px; padding: 12px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .gate-btn:hover { background: #6d28d9; }
+        .lock-note { color: #586069; font-size: 12px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="gate" class="gate">
+        <div class="gate-card">
+            <h1>🔐 PRO-доступ</h1>
+            <p style="color:#586069; font-size:14px;">Ликвидация · риск-менеджмент · комиссии</p>
+            <input type="text" id="codeInput" placeholder="Код доступа" autocomplete="off">
+            <button class="gate-btn" onclick="unlock()">Открыть</button>
+            <p id="gateMsg" class="result-value neg" style="display:none; margin-top:10px;">Код недействителен или истёк</p>
+            <p class="lock-note">Код выдаётся после оплаты и действует до конца указанного в нём месяца.</p>
+        </div>
+    </div>
+
+    <div id="app" style="display:none;">
+        <h1>Калькулятор позиций PRO</h1>
+        <p class="subtitle">Комиссии · риск-менеджмент · цена ликвидации</p>
+
+        <div class="card cap-card">
+            <div class="row">
+                <div class="col">
+                    <label>💵 Капитал, $</label>
+                    <input type="number" id="capUsd" value="1000" step="0.01">
+                    <label>Риск на сделку, %</label>
+                    <input type="number" id="riskUsd" value="2" step="0.1">
+                    <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskUsdOut">—</span></div>
+                </div>
+                <div class="col">
+                    <label>🇷🇺 Капитал, ₽</label>
+                    <input type="number" id="capRub" value="100000" step="0.01">
+                    <label>Риск на сделку, %</label>
+                    <input type="number" id="riskRub" value="2" step="0.1">
+                    <div class="result-item" style="margin-top:8px;"><span class="result-label">Сумма риска</span><span class="result-value" id="riskRubOut">—</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="positions"></div>
+        <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
+
+        <div class="card">
+            <div class="total-section">
+                <div class="total-title">💵 Итог в долларах</div>
+                <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="usdMargin">—</span></div>
+                <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="usdFee">—</span></div>
+                <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="usdPnl">—</span></div>
+                <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="usdPnlNet">—</span></div>
+                <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="usdRoe">—</span></div>
+            </div>
+            <div class="total-section">
+                <div class="total-title">🇷🇺 Итог в рублях</div>
+                <div class="total-item"><span class="result-label">Суммарная маржа</span><span class="total-value" id="rubMargin">—</span></div>
+                <div class="total-item"><span class="result-label">Комиссии</span><span class="total-value" id="rubFee">—</span></div>
+                <div class="total-item"><span class="result-label">PnL без комиссии</span><span class="total-value" id="rubPnl">—</span></div>
+                <div class="total-item"><span class="result-label">PnL с комиссией</span><span class="total-value" id="rubPnlNet">—</span></div>
+                <div class="total-item"><span class="result-label">ROE (с комиссией)</span><span class="total-value" id="rubRoe">—</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CODES = ['MIKL-1126', 'MIKL-1226', 'MIKL-0127'];
+        const LEVERAGES = [1, 2, 3, 5, 10, 20, 25, 50, 100];
+
+        function expiryOf(code) {
+            const m = code.match(/^MIKL-(\d{2})(\d{2})$/);
+            if (!m) return null;
+            const mm = parseInt(m[1], 10), yy = 2000 + parseInt(m[2], 10);
+            if (mm < 1 || mm > 12) return null;
+            return new Date(yy, mm, 1);
+        }
+        function codeValid(code) {
+            const exp = expiryOf(code);
+            return CODES.includes(code) && exp && new Date() < exp;
+        }
+        function unlock() {
+            const code = document.getElementById('codeInput').value.trim().toUpperCase();
+            if (codeValid(code)) {
+                localStorage.setItem('mikl_pro_code', code);
+                showApp();
+            } else {
+                document.getElementById('gateMsg').style.display = 'block';
+            }
+        }
+        function showApp() {
+            document.getElementById('gate').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            addPosition();
+        }
+        (function init() {
+            const saved = localStorage.getItem('mikl_pro_code');
+            if (saved && codeValid(saved)) showApp();
+            document.getElementById('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+        })();
+
+        function fmt(n) {
+            return n.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+        function symOf(cur) { return cur === 'RUB' ? '₽' : '$'; }
+        function sign(n, str) { return (n >= 0 ? '+' : '−') + str; }
+
+        function addPosition() {
+            const levOptions = LEVERAGES.map(l => `<option value="${l}"${l === 10 ? ' selected' : ''}>×${l}</option>`).join('');
+            const div = document.createElement('div');
+            div.className = 'card pos-card';
+            div.dataset.last = 'qty';
+            div.innerHTML = `
+                <div class="row-head">
+                    <input type="text" class="p-name" placeholder="Название (BTC, SBER...)" value="BTC">
+                    <button class="del-btn" title="Удалить" onclick="removeRow(this)">×</button>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Валюта</label>
+                        <select class="p-currency">
+                            <option value="USD">$ — крипта, акции США</option>
+                            <option value="RUB">₽ — акции РФ</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label>Направление</label>
+                        <select class="p-direction">
+                            <option value="long">Лонг (рост)</option>
+                            <option value="short">Шорт (падение)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Количество</label>
+                        <input type="number" class="p-qty" value="0.15" step="any">
+                    </div>
+                    <div class="col">
+                        <label>Сумма позиции</label>
+                        <input type="number" class="p-sum" value="9750" step="0.01">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Плечо</label>
+                        <select class="p-lev">${levOptions}</select>
+                    </div>
+                    <div class="col">
+                        <label>Комиссия, %</label>
+                        <input type="number" class="p-fee" value="0.1" step="0.01">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Цена входа</label>
+                        <input type="number" class="p-entry" value="65000" step="0.01">
+                    </div>
+                    <div class="col">
+                        <label>Цена выхода</label>
+                        <input type="number" class="p-exit" value="70000" step="0.01">
+                    </div>
+                </div>
+                <div class="row-res">
+                    <div class="result-item"><span class="result-label">Маржа (своих денег)</span><span class="result-value p-margin">—</span></div>
+                    <div class="result-item"><span class="result-label">Комиссия</span><span class="result-value p-feeOut">—</span></div>
+                    <div class="result-item"><span class="result-label">PnL без комиссии</span><span class="result-value p-pnl">—</span></div>
+                    <div class="result-item"><span class="result-label">PnL с комиссией</span><span class="result-value p-pnlNet">—</span></div>
+                    <div class="result-item"><span class="result-label">Ликвидация (примерно)</span><span class="result-value p-liq">—</span></div>
+                </div>`;
+            document.getElementById('positions').appendChild(div);
+
+            div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', recalcAll));
+            div.querySelector('.p-qty').addEventListener('input', () => { div.dataset.last = 'qty'; recalcAll(); });
+            div.querySelector('.p-sum').addEventListener('input', () => { div.dataset.last = 'sum'; recalcAll(); });
+            recalcAll();
+        }
+
+        function removeRow(btn) {
+            btn.closest('.pos-card').remove();
+            recalcAll();
+        }
+
+        function recalcAll() {
+            document.getElementById('riskUsdOut').innerText = '$' + fmt((parseFloat(document.getElementById('capUsd').value) || 0) * (parseFloat(document.getElementById('riskUsd').value) || 0) / 100);
+            document.getElementById('riskRubOut').innerText = '₽' + fmt((parseFloat(document.getElementById('capRub').value) || 0) * (parseFloat(document.getElementById('riskRub').value) || 0) / 100);
+
+            let mUsd = 0, pUsd = 0, fUsd = 0, mRub = 0, pRub = 0, fRub = 0;
+
+            document.querySelectorAll('.pos-card').forEach(card => {
+                const cur = card.querySelector('.p-currency').value;
+                const dir = card.querySelector('.p-direction').value;
+                const lev = parseFloat(card.querySelector('.p-lev').value) || 1;
+                const feePct = parseFloat(card.querySelector('.p-fee').value) || 0;
+                const entry = parseFloat(card.querySelector('.p-entry').value) || 0;
+                const exit = parseFloat(card.querySelector('.p-exit').value) || 0;
+                const qtyIn = card.querySelector('.p-qty');
+                const sumIn = card.querySelector('.p-sum');
+
+                let qty = parseFloat(qtyIn.value) || 0;
+                let size = parseFloat(sumIn.value) || 0;
+
+                // синхронизация: заполняем то поле, которое не редактировали последним
+                if (card.dataset.last === 'qty' && entry > 0 && qty >= 0) {
+                    size = qty * entry;
+                    sumIn.value = size ? String(parseFloat(size.toFixed(2))) : '';
+                } else if (card.dataset.last === 'sum' && entry > 0 && size >= 0) {
+                    qty = size / entry;
+                    qtyIn.value = qty ? String(parseFloat(qty.toFixed(8))) : '';
+                } else if (entry > 0 && qty > 0) {
+                    size = qty * entry;
+                    sumIn.value = String(parseFloat(size.toFixed(2)));
+                }
+
+                const margin = size / lev;
+                const fee = size * feePct / 100;
+                let pnl = entry > 0 ? (exit - entry) * qty : 0;
+                if (dir === 'short') pnl = -pnl;
+                const pnlNet = pnl - fee;
+
+                if (cur === 'USD') { mUsd += margin; pUsd += pnl; fUsd += fee; }
+                else { mRub += margin; pRub += pnl; fRub += fee; }
+
+                const sym = symOf(cur);
+                card.querySelector('.p-margin').innerText = sym + fmt(margin);
+                card.querySelector('.p-feeOut').innerText = '−' + sym + fmt(fee);
+
+                const pnlEl = card.querySelector('.p-pnl');
+                pnlEl.innerText = sign(pnl, sym + fmt(Math.abs(pnl)));
+                pnlEl.className = 'result-value p-pnl ' + (pnl >= 0 ? 'pos' : 'neg');
+
+                const netEl = card.querySelector('.p-pnlNet');
+                netEl.innerText = sign(pnlNet, sym + fmt(Math.abs(pnlNet)));
+                netEl.className = 'result-value p-pnlNet ' + (pnlNet >= 0 ? 'pos' : 'neg');
+
+                const liqEl = card.querySelector('.p-liq');
+                if (lev > 1 && entry > 0) {
+                    const liq = dir === 'long' ? entry * (1 - 1 / lev) : entry * (1 + 1 / lev);
+                    liqEl.innerText = '≈ ' + sym + fmt(liq);
+                } else {
+                    liqEl.innerText = '—';
+                }
+            });
+
+            updateTotal('usd', '$', mUsd, pUsd, fUsd);
+            updateTotal('rub', '₽', mRub, pRub, fRub);
+        }
+
+        function updateTotal(id, prefix, margin, pnl, fee) {
+            const pnlNet = pnl - fee;
+            document.getElementById(id + 'Margin').innerText = margin > 0 ? prefix + fmt(margin) : '—';
+            document.getElementById(id + 'Fee').innerText = fee > 0 ? '−' + prefix + fmt(fee) : '—';
+            const grossEl = document.getElementById(id + 'Pnl');
+            const netEl = document.getElementById(id + 'PnlNet');
+            const roeEl = document.getElementById(id + 'Roe');
+
+            grossEl.innerText = sign(pnl, prefix + fmt(Math.abs(pnl)));
+            grossEl.className = 'total-value ' + (pnl >= 0 ? 'pos' : 'neg');
+
+            if (margin > 0 || pnlNet !== 0) {
+                netEl.innerText = sign(pnlNet, prefix + fmt(Math.abs(pnlNet)));
+                netEl.className = 'total-value ' + (pnlNet >= 0 ? 'pos' : 'neg');
+                const roe = margin > 0 ? (pnlNet / margin) * 100 : 0;
+                roeEl.innerText = sign(roe, roe.toFixed(2) + '%');
+                roeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+            } else {
+                netEl.innerText = '—'; netEl.className = 'total-value';
+                roeEl.innerText = '—'; roeEl.className = 'total-value';
+            }
+        }
+
+        document.getElementById('capUsd').addEventListener('input', recalcAll);
+        document.getElementById('riskUsd').addEventListener('input', recalcAll);
+        document.getElementById('capRub').addEventListener('input', recalcAll);
+        document.getElementById('riskRub').addEventListener('input', recalcAll);
+    </script>
+</body>
+</html>
