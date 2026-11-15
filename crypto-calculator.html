@@ -25,6 +25,9 @@
         .neg { color: #d73a49; }
         .add-btn { width: 100%; padding: 12px; background: #fff; color: #0366d6; border: 2px dashed #0366d6; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 15px; }
         .add-btn:hover { background: #f0f6ff; }
+        .mode-toggle { display: flex; gap: 6px; margin-top: 5px; }
+        .mode-btn { flex: 1; padding: 7px; background: #e1e4e8; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #24292e; }
+        .mode-btn.active { background: #0366d6; color: #fff; }
         .total-section { padding: 10px 0; border-bottom: 1px solid #e1e4e8; }
         .total-section:last-child { border-bottom: none; }
         .total-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
@@ -34,7 +37,7 @@
 </head>
 <body>
     <h1>Калькулятор позиций</h1>
-    <p class="subtitle">Крипта и акции · плечо · вводишь количество — сумма считается сама</p>
+    <p class="subtitle">Крипта и акции · вводи количество или сумму — как удобнее</p>
 
     <div id="positions"></div>
     <button class="add-btn" onclick="addPosition()">+ Добавить актив</button>
@@ -65,6 +68,7 @@
             const levOptions = LEVERAGES.map(l => `<option value="${l}"${l === 10 ? ' selected' : ''}>×${l}</option>`).join('');
             const div = document.createElement('div');
             div.className = 'card pos-card';
+            div.dataset.mode = 'qty'; // по умолчанию ввод количества
             div.innerHTML = `
                 <div class="row-head">
                     <input type="text" class="p-name" placeholder="Название (BTC, SBER...)" value="BTC">
@@ -86,10 +90,19 @@
                         </select>
                     </div>
                 </div>
+                <label>Что вводим</label>
+                <div class="mode-toggle">
+                    <button type="button" class="mode-btn active" onclick="setMode(this, 'qty')">Количество</button>
+                    <button type="button" class="mode-btn" onclick="setMode(this, 'sum')">Сумма позиции</button>
+                </div>
                 <div class="row">
-                    <div class="col">
+                    <div class="col" id="qtyField">
                         <label>Количество актива</label>
                         <input type="number" class="p-qty" value="0.15" step="any">
+                    </div>
+                    <div class="col" id="sumField" style="display:none;">
+                        <label>Сумма позиции</label>
+                        <input type="number" class="p-sum" value="10000" step="0.01">
                     </div>
                     <div class="col">
                         <label>Плечо</label>
@@ -107,12 +120,39 @@
                     </div>
                 </div>
                 <div class="row-res">
-                    <div class="result-item"><span class="result-label">Сумма позиции</span><span class="result-value p-size">—</span></div>
+                    <div class="result-item"><span class="result-label qty-label">Сумма позиции</span><span class="result-value p-size">—</span></div>
+                    <div class="result-item"><span class="result-label sum-label" style="display:none;">Количество актива</span><span class="result-value p-amount" style="display:none;">—</span></div>
                     <div class="result-item"><span class="result-label">Маржа (своих денег)</span><span class="result-value p-margin">—</span></div>
                     <div class="result-item"><span class="result-label">PnL</span><span class="result-value p-pnl">—</span></div>
                 </div>`;
             document.getElementById('positions').appendChild(div);
             div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', recalcAll));
+            recalcAll();
+        }
+
+        function setMode(btn, mode) {
+            const card = btn.closest('.pos-card');
+            card.dataset.mode = mode;
+            card.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            card.querySelector('#qtyField')?.parentElement.querySelectorAll('.col'); // no-op safeguard
+            const qtyInput = card.querySelector('.p-qty');
+            const sumInput = card.querySelector('.p-sum');
+            const qtyWrap = qtyInput.closest('.col');
+            const sumWrap = sumInput.closest('.col');
+            if (mode === 'qty') {
+                qtyWrap.style.display = '';
+                sumWrap.style.display = 'none';
+                card.querySelector('.qty-label').style.display = '';
+                card.querySelector('.sum-label').style.display = 'none';
+                card.querySelector('.p-amount').style.display = 'none';
+            } else {
+                qtyWrap.style.display = 'none';
+                sumWrap.style.display = '';
+                card.querySelector('.qty-label').style.display = 'none';
+                card.querySelector('.sum-label').style.display = '';
+                card.querySelector('.p-amount').style.display = '';
+            }
             recalcAll();
         }
 
@@ -127,12 +167,20 @@
             document.querySelectorAll('.pos-card').forEach(card => {
                 const cur = card.querySelector('.p-currency').value;
                 const dir = card.querySelector('.p-direction').value;
-                const qty = parseFloat(card.querySelector('.p-qty').value) || 0;
                 const lev = parseFloat(card.querySelector('.p-lev').value) || 1;
                 const entry = parseFloat(card.querySelector('.p-entry').value) || 0;
                 const exit = parseFloat(card.querySelector('.p-exit').value) || 0;
+                const mode = card.dataset.mode;
 
-                const size = qty * entry;
+                let qty = 0, size = 0;
+                if (mode === 'qty') {
+                    qty = parseFloat(card.querySelector('.p-qty').value) || 0;
+                    size = qty * entry;
+                } else {
+                    size = parseFloat(card.querySelector('.p-sum').value) || 0;
+                    qty = entry > 0 ? size / entry : 0;
+                }
+
                 const margin = size / lev;
                 let pnl = (exit - entry) * qty;
                 if (dir === 'short') pnl = -pnl;
@@ -142,6 +190,7 @@
 
                 const sym = cur === 'RUB' ? '₽' : '$';
                 card.querySelector('.p-size').innerText = sym + fmt(size);
+                card.querySelector('.p-amount').innerText = qty.toLocaleString('ru-RU', {maximumFractionDigits: 8});
                 card.querySelector('.p-margin').innerText = sym + fmt(margin);
 
                 const pnlEl = card.querySelector('.p-pnl');
@@ -149,36 +198,24 @@
                 pnlEl.className = 'result-value p-pnl ' + (pnl >= 0 ? 'pos' : 'neg');
             });
 
-            // итог в долларах
-            document.getElementById('usdMargin').innerText = mUsd > 0 ? '$' + fmt(mUsd) : '—';
-            const usdPnlEl = document.getElementById('usdPnl');
-            if (mUsd > 0 || pUsd !== 0) {
-                usdPnlEl.innerText = (pUsd >= 0 ? '+' : '−') + '$' + fmt(Math.abs(pUsd));
-                usdPnlEl.className = 'total-value ' + (pUsd >= 0 ? 'pos' : 'neg');
-                const roe = mUsd > 0 ? (pUsd / mUsd) * 100 : 0;
-                const usdRoeEl = document.getElementById('usdRoe');
-                usdRoeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
-                usdRoeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
-            } else {
-                usdPnlEl.innerText = '—'; usdPnlEl.className = 'total-value';
-                document.getElementById('usdRoe').innerText = '—';
-                document.getElementById('usdRoe').className = 'total-value';
-            }
+            updateTotal('usd', mUsd, pUsd);
+            updateTotal('rub', mRub, pRub);
+        }
 
-            // итог в рублях
-            document.getElementById('rubMargin').innerText = mRub > 0 ? '₽' + fmt(mRub) : '—';
-            const rubPnlEl = document.getElementById('rubPnl');
-            if (mRub > 0 || pRub !== 0) {
-                rubPnlEl.innerText = (pRub >= 0 ? '+' : '−') + '₽' + fmt(Math.abs(pRub));
-                rubPnlEl.className = 'total-value ' + (pRub >= 0 ? 'pos' : 'neg');
-                const roe = mRub > 0 ? (pRub / mRub) * 100 : 0;
-                const rubRoeEl = document.getElementById('rubRoe');
-                rubRoeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
-                rubRoeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
+        function updateTotal(cur, margin, pnl) {
+            const prefix = cur === 'usd' ? '$' : '₽';
+            document.getElementById(cur + 'Margin').innerText = margin > 0 ? prefix + fmt(margin) : '—';
+            const pnlEl = document.getElementById(cur + 'Pnl');
+            const roeEl = document.getElementById(cur + 'Roe');
+            if (margin > 0 || pnl !== 0) {
+                pnlEl.innerText = (pnl >= 0 ? '+' : '−') + prefix + fmt(Math.abs(pnl));
+                pnlEl.className = 'total-value ' + (pnl >= 0 ? 'pos' : 'neg');
+                const roe = margin > 0 ? (pnl / margin) * 100 : 0;
+                roeEl.innerText = (roe >= 0 ? '+' : '−') + roe.toFixed(2) + '%';
+                roeEl.className = 'total-value ' + (roe >= 0 ? 'pos' : 'neg');
             } else {
-                rubPnlEl.innerText = '—'; rubPnlEl.className = 'total-value';
-                document.getElementById('rubRoe').innerText = '—';
-                document.getElementById('rubRoe').className = 'total-value';
+                pnlEl.innerText = '—'; pnlEl.className = 'total-value';
+                roeEl.innerText = '—'; roeEl.className = 'total-value';
             }
         }
 
