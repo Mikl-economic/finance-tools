@@ -45,6 +45,12 @@
         .gate-btn { width: 100%; margin-top: 15px; padding: 12px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
         .gate-btn:hover { background: #6d28d9; }
         .lock-note { color: #586069; font-size: 12px; margin-top: 12px; }
+                .mail-box { margin-top: 16px; padding: 12px; background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 8px; }
+        .mail-title { font-weight: 700; font-size: 13px; margin: 0 0 4px; }
+        .mail-text { font-size: 13px; color: #586069; margin: 4px 0; }
+        .mail-link { color: #0366d6; font-weight: 600; text-decoration: none; }
+        .mail-link:hover { text-decoration: underline; }
+        .mail-quote { font-size: 13px; font-weight: 700; color: #7c3aed; background: #f5f0ff; border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
         @media (max-width: 900px) {
             .layout { flex-direction: column; }
             .side-col { width: 100%; position: static; }
@@ -60,9 +66,15 @@
             <input type="text" id="codeInput" placeholder="Код доступа" autocomplete="off">
             <button class="gate-btn" onclick="unlock()">Открыть</button>
             <p id="gateMsg" class="result-value neg" style="display:none; margin-top:10px;">Код недействителен или истёк</p>
-            <p class="lock-note">Код выдаётся после оплаты и действует до конца указанного в нём месяца.</p>
+            <div class="mail-box">
+                <p class="mail-title">Нет кода или он истёк?</p>
+                <p class="mail-text">Напишите на почту <a href="mailto:partnerstvo26@gmail.com" class="mail-link">partnerstvo26@gmail.com</a> с текстом:</p>
+                <p class="mail-quote">«Пришлите код для PRO калькулятора»</p>
+                <p class="mail-text">Обратным сообщением вышлю код доступа.</p>
+            </div>
         </div>
     </div>
+
 
     <div id="app" style="display:none;">
         <h1>Калькулятор позиций PRO</h1>
