@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Анализ брокерского отчёта — Т-Банк</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>if(typeof XLSX==='undefined'){document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');}</script>
+<style>
+:root{--bg:#ffffff;--card:#ffffff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#2563eb;--ok:#16a34a;--warn:#b45309;--warnbg:#fef3c7;--err:#dc2626;--bar:#bfdbfe}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.5}
+.wrap{max-width:900px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:26px;margin:8px 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+.note{background:#f3f7ff;border:1px solid #dbe7ff;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+.drop{border:2px dashed #c7d2fe;border-radius:12px;padding:28px 16px;text-align:center;cursor:pointer;color:var(--muted);background:#fafbff}
+.drop:hover{background:#f4f6ff}
+.drop b{color:var(--accent)}
+.chips{margin:12px 0;display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#eef2ff;border:1px solid #dbe3ff;border-radius:999px;padding:4px 12px;font-size:13px}
+.chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0}
+.log{font-size:12px;color:var(--muted);margin:10px 0;white-space:pre-wrap}
+.log .err{color:var(--err)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin:16px 0}
+.card h2{font-size:18px;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid #f1f3f5}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.total td{font-weight:600;border-top:2px solid var(--border)}
+.pos{position:relative;font-variant-numeric:tabular-nums}
+.bar{position:absolute;left:8px;right:8px;top:50%;height:6px;transform:translateY(-50%);background:var(--bar);border-radius:4px;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.pos span{position:relative;right:0;z-index:1}
+.warn{background:var(--warnbg);border:1px solid #fde68a;color:var(--warn);border-radius:10px;padding:10px 14px;font-size:14px;margin:12px 0}
+.okmsg{color:var(--ok);font-weight:600}
+.errmsg{color:var(--err)}
+.muted{color:var(--muted);font-size:13px}
+.pro{margin-top:24px;padding:14px 16px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);font-size:14px}
+footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Анализ брокерского отчёта</h1>
+  <p class="sub">Загрузите Excel-отчёт Т-Банка (один или несколько — за разные годы) и получите полный разбор портфеля.</p>
+  <div class="note">&#128274; Файл обрабатывается <b>прямо в вашем браузере</b> и никуда не отправляется. После загрузки страницы интернет можно отключить — расчёт всё равно работает.</div>
+  <div id="drop" class="drop">
+    <b>Нажмите или перетащите сюда Excel-файлы</b><br>
+    Приложение Т-Банка &rarr; Отчёты &rarr; Брокерский отчёт &rarr; формат &laquo;Excel&raquo;<br>
+    <span class="muted">Можно выбрать сразу несколько файлов за разные годы — расчёт их объединит.</span>
+  </div>
+  <input type="file" id="file" accept=".xlsx,.xls" multiple hidden>
+  <div id="files" class="chips"></div>
+  <div id="log" class="log"></div>
+  <div id="out"></div>
+  <div class="pro">Скоро в PRO: налоговый модуль — ЛДВ, экономия на ИИС, готовые цифры для декларации.</div>
+  <footer>Расчёты выполняются локально в вашем браузере. Файл отчёта никуда не загружается.</footer>
+</div>
+<script>
+'use strict';
+var FILES=[];
+
+function norm(s){if(s===null||s===undefined)return'';return String(s).replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
+function num(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return v;var s=String(v).replace(/\u00A0/g,'').replace(/\s/g,'');if(s.indexOf(',')>=0&&s.indexOf('.')>=0)s=s.replace(/,/g,'');else s=s.replace(/,/g,'.');var n=parseFloat(s);return isNaN(n)?0:n;}
+function toISO(v){if(v instanceof Date&&!isNaN(v))return v.getFullYear()+'-'+('0'+(v.getMonth()+1)).slice(-2)+'-'+('0'+v.getDate()).slice(-2);if(typeof v==='number'){try{var d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+('0'+d.m).slice(-2)+'-'+('0'+d.d).slice(-2);}catch(e){}return null;}if(typeof v==='string'){var m=v.match(/(\d{2})\.(\d{2})\.(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];return null;}return null;}
+function fmtDate(iso){if(!iso)return'\u2014';var p=iso.split('-');return p[2]+'.'+p[1]+'.'+p[0];}
+function fmt(v){return v.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' \u20BD';}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function findRow(rows,re,from){for(var i=(from||0);i<rows.length;i++){var r=rows[i]||[];for(var j=0;j<r.length;j++){if(re.test(norm(r[j])))return{i:i,j:j};}}return null;}
+function idxOf(row,name){var n=norm(name);for(var j=0;j<(row||[]).length;j++){if(norm(row[j])===n)return j;}return -1;}
+
+function parseFile(name,bytes){
+  var wb=XLSX.read(bytes,{type:'array',cellDates:true});
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+  var period=null;
+  var p=findRow(rows,/отчет о сделках и операциях за период/);
+  if(p){var m=norm(rows[p.i][p.j]).match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2})\.(\d{2})\.(\d{4})/);if(m)period={from:m[3]+'-'+m[2]+'-'+m[1],to:m[6]+'-'+m[5]+'-'+m[4]};}
+  var trades=[];
+  var tSec=findRow(rows,/1\.1\s*информация о совершенных/);
+  if(tSec){
+    var tHead=findRow(rows,/номер сделки/,tSec.i+1);
+    if(tHead){
+      var cNum=idxOf(rows[tHead.i],'номер сделки'),cSide=idxOf(rows[tHead.i],'вид сделки'),
+          cTik=idxOf(rows[tHead.i],'код актива'),cQty=idxOf(rows[tHead.i],'количество'),
+          cSum=idxOf(rows[tHead.i],'сумма сделки'),cPrice=idxOf(rows[tHead.i],'цена за единицу'),
+          cBrok=idxOf(rows[tHead.i],'комиссия брокера'),cBirj=idxOf(rows[tHead.i],'комиссия биржи'),
+          cClir=idxOf(rows[tHead.i],'комиссия клир. центра'),cGerb=idxOf(rows[tHead.i],'гербовый сбор'),
+          cDate=idxOf(rows[tHead.i],'дата заключения');
+      for(var r=tHead.i+1;r<rows.length;r++){
+        var row=rows[r]||[];var c0=norm(row[0]);
+        if(/^1\.[2-9]/.test(c0)||/^2\.\s*операции/.test(c0))break;
+        var side=norm(row[cSide]);
+        if(!c0||(side!=='покупка'&&side!=='продажа'))continue;
+        var nn=num(row[cNum]);if(!nn)continue;
+        trades.push({num:nn,date:toISO(row[cDate]),side:side==='покупка'?'buy':'sell',
+          ticker:String(row[cTik]||'').trim().toUpperCase(),qty:num(row[cQty]),sum:num(row[cSum]),
+          price:num(row[cPrice]),fee:num(row[cBrok])+num(row[cBirj])+num(row[cClir])+num(row[cGerb])});
+      }
+    }
+  }
+  var money={inflow:0,outflow:0,div:0,tax:0,fees:0,allIn:0,allOut:0,balIn:null,balOut:null,ops:0};
+  var mSec=findRow(rows,/2\.\s*операции с денежными средствами/);
+  if(mSec){
+    var bHead=findRow(rows,/входящий остаток/,mSec.i+1);
+    if(bHead){
+      var cIB=idxOf(rows[bHead.i],'входящий остаток'),cOB=idxOf(rows[bHead.i],'исходящий остаток');
+      for(var r2=bHead.i+1;r2<rows.length;r2++){
+        var rr=rows[r2]||[];var c0b=norm(rr[0]);
+        if(c0b==='rub'){money.balIn=num(rr[cIB]);money.balOut=num(rr[cOB]);break;}
+        if(c0b&&c0b!=='usd'&&c0b!=='eur'&&c0b!=='gbp'&&c0b!=='chf'&&c0b!=='cny')break;
+      }
+      var oHead=findRow(rows,/время совершения/,bHead.i);
+      if(oHead){
+        var cD=idxOf(rows[oHead.i],'дата'),cE=idxOf(rows[oHead.i],'дата исполнения'),
+            cOp=idxOf(rows[oHead.i],'операция'),cCr=idxOf(rows[oHead.i],'сумма зачисления'),
+            cDe=idxOf(rows[oHead.i],'сумма списания');
+        for(var r3=oHead.i+1;r3<rows.length;r3++){
+          var row3=rows[r3]||[];var c03=norm(row3[0]);
+          if(/^3\.\d/.test(c03))break;
+          var op=norm(row3[cOp]);if(!op)continue;
+          var credit=num(row3[cCr]),debit=num(row3[cDe]);
+          if(credit===0&&debit===0)continue;
+          money.ops++;money.allIn+=credit;money.allOut+=debit;
+          if(op.indexOf('пополнение')===0)money.inflow+=credit;
+          else if(op.indexOf('вывод')===0)money.outflow+=debit;
+          else if(op.indexOf('выплата доходов')===0)money.div+=credit;
+          else if(op.indexOf('налог')===0)money.tax+=debit;
+          else if(op.indexOf('комиссия')===0||op.indexOf('процент')===0)money.fees+=debit;
+        }
+      }
+    }
+  }
+  var positions={};
+  var posSec=findRow(rows,/3\.1\s*движение по ценным бумагам/);
+  if(posSec){
+    var pH=findRow(rows,/код актива/,posSec.i+1);
+    if(pH){
+      var cT=idxOf(rows[pH.i],'код актива'),cIQ=idxOf(rows[pH.i],'входящий остаток'),cFQ=idxOf(rows[pH.i],'исходящий остаток');
+      for(var r4=pH.i+1;r4<rows.length;r4++){
+        var row4=rows[r4]||[];var t=row4[cT];
+        if(t===undefined||t===null||String(t).trim()==='')continue;
+        var key=String(t).trim().toUpperCase();
+        if(key==='КОД КОНТРАКТА')continue;
+        positions[key]={inq:num(row4[cIQ]),fin:num(row4[cFQ])};
+      }
+    }
+  }
+  return{name:name,period:period,trades:trades,money:money,positions:positions};
+}
+
+function recompute(){
+  var logEl=document.getElementById('log');
+  var filesEl=document.getElementById('files');
+  var out=document.getElementById('out');
+  filesEl.innerHTML=FILES.map(function(f,i){return '<span class="chip">'+esc(f.name)+(f.period?' ('+fmtDate(f.period.from)+' \u2014 '+fmtDate(f.period.to)+')':'')+' <button data-i="'+i+'" title="Убрать">\u2715</button></span>';}).join('');
+  filesEl.querySelectorAll('button').forEach(function(b){b.onclick=function(){FILES.splice(+b.getAttribute('data-i'),1);recompute();};});
+  if(!FILES.length){out.innerHTML='';logEl.textContent='';return;}
+  FILES.sort(function(a,b){return ((a.period&&a.period.from)||'9999')<((b.period&&b.period.from)||'9999')?-1:1;});
+  var log='';
+  FILES.forEach(function(f){log+='Файл \u00AB'+f.name+'\u00BB'+(f.period?' ('+fmtDate(f.period.from)+' \u2014 '+fmtDate(f.period.to)+')':'')+': сделок '+f.trades.length+', денежных операций '+f.money.ops+'\n';});
+  // склейка сделок
+  var seen={},merged=[];
+  FILES.forEach(function(f){f.trades.forEach(function(t){if(t.num&&seen[t.num])return;if(t.num)seen[t.num]=1;merged.push(t);});});
+  merged.sort(function(a,b){return (a.date||'9999')<(b.date||'9999')?-1:(a.date||'9999')>(b.date||'9999')?1:0;});
+  var first=FILES[0],last=FILES[FILES.length-1];
+  // допериодные лоты
+  var lots={};var preSold={},unknownRev={};
+  Object.keys(first.positions||{}).forEach(function(t){var q=first.positions[t].inq;if(q>1e-9){(lots[t]=lots[t]||[]).push({qty:q,cpu:null});}});
+  var stats={};
+  merged.forEach(function(tr){
+    var t=tr.ticker;lots[t]=lots[t]||[];
+    var st=stats[t]=stats[t]||{pnl:0,sold:0,proceeds:0,cost:0,unknown:0,invested:0,realizedFrom:0};
+    if(tr.side==='buy'){var cpu=tr.qty>0?(tr.price*tr.qty+tr.fee)/tr.qty:0;lots[t].push({qty:tr.qty,cpu:cpu});st.invested+=tr.price*tr.qty+tr.fee;}
+    else{
+      var need=tr.qty,revpu=tr.qty>0?(tr.sum-tr.fee)/tr.qty:0;
+      st.sold+=tr.qty;st.proceeds+=tr.sum-tr.fee;st.invested-=tr.sum-tr.fee;
+      while(need>1e-9){
+        if(!lots[t].length){st.unknown+=need;unknownRev[t]=(unknownRev[t]||0)+revpu*need;break;}
+        var lot=lots[t][0],take=Math.min(lot.qty,need);
+        if(lot.cpu===null){st.unknown+=take;unknownRev[t]=(unknownRev[t]||0)+revpu*take;}
+        else{st.pnl+=(revpu-lot.cpu)*take;st.cost+=lot.cpu*take;}
+        lot.qty-=take;need-=take;
+        if(lot.qty<=1e-9)lots[t].shift();
+      }
+      if(st.unknown>0)preSold[t]=st.unknown;
+    }
+  });
+  // деньги
+  var inflow=0,outflow=0,div=0,tax=0,fees=0,allIn=0,allOut=0,ops=0;
+  var balIn=null,balOut=null;
+  FILES.forEach(function(f){inflow+=f.money.inflow;outflow+=f.money.outflow;div+=f.money.div;tax+=f.money.tax;fees+=f.money.fees;allIn+=f.money.allIn;allOut+=f.money.allOut;ops+=f.money.ops;
+    if(f===first&&f.money.balIn!==null)balIn=f.money.balIn;
+    if(f===last&&f.money.balOut!==null)balOut=f.money.balOut;});
+  // открытые позиции (из последнего файла)
+  var open=[];
+  Object.keys(last.positions||{}).forEach(function(t){var q=last.positions[t].fin;if(q>1e-9)open.push(t);});
+  // рендер
+  var html='';
+  // 1. Деньги
+  html+='<div class="card"><h2>Движение денег за период</h2><table>';
+  html+='<tr><td>Пополнено</td><td class="num">'+fmt(inflow)+'</td></tr>';
+  html+='<tr><td>Выведено</td><td class="num">'+fmt(outflow)+'</td></tr>';
+  html+='<tr><td>Дивиденды и купоны (до налога)</td><td class="num">'+fmt(div)+'</td></tr>';
+  html+='<tr><td>Налоги удержано</td><td class="num">'+fmt(tax)+'</td></tr>';
+  html+='<tr><td>Дивиденды после налога (справочно)</td><td class="num">'+fmt(div-tax)+'</td></tr>';
+  html+='<tr><td>Комиссии</td><td class="num">'+fmt(fees)+'</td></tr>';
+  if(balOut!==null)html+='<tr class="total"><td>Остаток денег на конец периода</td><td class="num">'+fmt(balOut)+'</td></tr>';
+  html+='</table>';
+  if(balIn!==null&&balOut!==null){
+    var diff=balIn+allIn-allOut;
+    if(Math.abs(diff-balOut)<0.02)html+='<p class="okmsg">\u2713 Проверка денежного потока: сходится до копейки ('+fmt(diff)+')</p>';
+    else html+='<p class="errmsg">\u26A0 Проверка денежного потока не сходится: расчёт '+fmt(diff)+', в отчёте '+fmt(balOut)+'. Возможно, загружены не все годы подряд.</p>';
+  }
+  html+='</div>';
+  // 2. PNL закрытых (FIFO)
+  var soldTickers=Object.keys(stats).filter(function(t){return stats[t].sold>1e-9;}).sort(function(a,b){return stats[b].proceeds-stats[a].proceeds;});
+  if(soldTickers.length){
+    html+='<div class="card"><h2>Проданные бумаги \u2014 результат (FIFO)</h2><table><tr><th>Актив</th><th class="num">Продано, шт.</th><th class="num">Выручка (нетто)</th><th class="num">Себестоимость</th><th class="num">PNL</th></tr>';
+    var totPnl=0;
+    soldTickers.forEach(function(t){
+      var s=stats[t];totPnl+=s.pnl;
+      var warnRow=s.unknown>1e-9?' <span class="muted">(\u0438\u0437 \u043D\u0438\u0445 '+s.unknown.toFixed(0)+' \u0448\u0442. \u0434\u043E\u043F\u0435\u0440\u0438\u043E\u0434\u043D\u044B\u0435)</span>':'';
+      html+='<tr><td>'+esc(t)+warnRow+'</td><td class="num">'+s.sold.toLocaleString('ru-RU')+'</td><td class="num">'+fmt(s.proceeds)+'</td><td class="num">'+fmt(s.cost)+'</td><td class="num" style="color:'+(s.pnl>=0?'var(--ok)':'var(--err)')+';font-weight:600">'+(s.pnl>=0?'+':'')+fmt(s.pnl)+'</td></tr>';
+    });
+    html+='<tr class="total"><td>Итого (по известной части)</td><td></td><td></td><td></td><td class="num">'+(totPnl>=0?'+':'')+fmt(totPnl)+'</td></tr></table>';
+    var warns=soldTickers.filter(function(t){return stats[t].unknown>1e-9;});
+    if(warns.length){
+      html+='<div class="warn">\u26A0 Часть проданных бумаг куплена до начала самого раннего загруженного периода, их цена покупки неизвестна, поэтому PNL посчитан только по известной части:<br>';
+      html+=warns.map(function(t){return esc(t)+': '+stats[t].unknown.toFixed(0)+' \u0448\u0442., выручка '+fmt(unknownRev[t])+' \u2014 загрузите отчёт за предыдущие годы.';}).join('<br>');
+      html+='</div>';
+    }
+    html+='</div>';
+  }
+  // 3. Вложения в открытые позиции
+  var openSorted=open.filter(function(t){return stats[t]&&stats[t].invested!==0;});
+  openSorted.sort(function(a,b){return Math.abs(stats[b].invested)-Math.abs(stats[a].invested);});
+  if(openSorted.length){
+    var totalInv=openSorted.reduce(function(s,t){return s+Math.max(stats[t].invested,0);},0);
+    html+='<div class="card"><h2>Вложения в активы (открытые позиции)</h2><table><tr><th>Актив</th><th class="num">Кол-во</th><th class="num">Вложено (нетто)</th><th class="num">Доля</th></tr>';
+    openSorted.forEach(function(t){
+      var inv=stats[t].invested,share=totalInv>0?Math.max(inv,0)/totalInv*100:0;
+      html+='<tr><td>'+esc(t)+'</td><td class="num">'+(last.positions[t]?last.positions[t].fin.toLocaleString('ru-RU'):'\u2014')+'</td><td class="num">'+fmt(inv)+'</td><td class="pos"><div class="bar"><i style="width:'+Math.min(share,100).toFixed(1)+'%"></i></div><span>'+share.toFixed(1)+'%</span></td></tr>';
+    });
+    html+='<tr class="total"><td>Итого</td><td></td><td class="num">'+fmt(totalInv)+'</td><td></td></tr></table>';
+    html+='<p class="muted">Вложено = покупки минус продажи за загруженный период, с комиссиями. Количество и структура позиций берутся из раздела 3.1 последнего отчёта.</p></div>';
+  }
+  out.innerHTML=html;
+  logEl.innerHTML=esc(log);
+}
+
+// загрузка файлов
+var drop=document.getElementById('drop'),input=document.getElementById('file');
+drop.onclick=function(){input.click();};
+input.onchange=function(){handle(input.files);input.value='';};
+drop.addEventListener('dragover',function(e){e.preventDefault();drop.style.background='#eef2ff';});
+drop.addEventListener('dragleave',function(){drop.style.background='';});
+drop.addEventListener('drop',function(e){e.preventDefault();drop.style.background='';handle(e.dataTransfer.files);});
+function handle(list){
+  if(typeof XLSX==='undefined'){document.getElementById('log').innerHTML='<span class="errmsg">Не удалось загрузить библиотеку SheetJS \u2014 проверьте интернет и обновите страницу.</span>';return;}
+  Array.prototype.forEach.call(list,function(f){
+    if(FILES.some(function(x){return x.name===f.name;}))return;
+    var fr=new FileReader();
+    fr.onload=function(){
+      try{FILES.push(parseFile(f.name,new Uint8Array(fr.result)));}
+      catch(e){var le=document.getElementById('log');le.innerHTML+='<span class="errmsg">Ошибка файла \u00AB'+esc(f.name)+'\u00BB: '+esc(e.message)+'</span>\n';}
+      recompute();
+    };
+    fr.readAsArrayBuffer(f);
+  });
+}
+</script>
+</body>
+</html>
