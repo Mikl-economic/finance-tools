@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Анализ брокерского отчёта</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--ink:#1a2233;--muted:#6b7686;--line:#e6ebf2;--bg:#f6f8fb;--card:#ffffff;--acc:#3b82f6;--ok:#15803d;--warn:#b45309;--err:#b91c1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:26px;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 16px}
+.privacy{background:#eef6ee;border:1px solid #cfe8cf;border-radius:10px;padding:10px 14px;margin:0 0 18px;color:#1f5c2e;font-size:14px}
+.drop{border:2px dashed #b9c7d9;border-radius:14px;background:#fbfcfe;padding:28px;text-align:center;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--acc);background:#f2f7ff}
+.drop b{font-size:17px}
+.drop .m{color:var(--muted);margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#eef3fa;border:1px solid #dbe6f3;border-radius:20px;padding:4px 12px;font-size:13px}
+.chip button{border:0;background:none;cursor:pointer;color:#8a94a6;font-size:15px;line-height:1;padding:0}
+.log{margin:10px 0 0;font-size:13px}
+.log div{margin:2px 0}
+.ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}.info{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.card h2{font-size:18px;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{color:var(--muted);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.r,td.num{text-align:right}
+td{padding:7px 8px;border-bottom:1px solid #eef1f6;vertical-align:middle}
+tr.total td{font-weight:600;border-top:2px solid var(--line)}
+.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.share{display:flex;align-items:center;gap:10px;min-width:170px}
+.bar{flex:1;height:10px;background:#e3edf9;border-radius:5px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:5px}
+.pct{width:56px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.pos{color:var(--ok);font-weight:600}.neg{color:var(--err);font-weight:600}
+.note{color:var(--muted);font-size:13px;margin-top:10px}
+.wnote{background:#fdf6e3;border:1px solid #f2e2b3;color:#8a6d1a;border-radius:8px;padding:8px 12px;margin:10px 0 0;font-size:13px}
+.flow{font-size:14px;margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Анализ брокерского отчёта</h1>
+<p class="sub">Загрузите Excel-отчёт Т-Банка — один или несколько за разные годы — и получите полный разбор портфеля.</p>
+<div class="privacy">&#128274; Файл обрабатывается <b>прямо в вашем браузере</b> и никуда не отправляется. После загрузки страницы интернет можно отключить — расчёт всё равно работает.</div>
+<div class="drop" id="drop">
+  <b>Нажмите или перетащите сюда Excel-файлы</b>
+  <div class="m">Приложение Т-Банка &#8594; Отчёты &#8594; Брокерский отчёт &#8594; формат «Excel»</div>
+  <div class="m">Можно выбрать сразу несколько файлов за разные годы — расчёт их объединит.</div>
+</div>
+<input type="file" id="fileInput" multiple accept=".xlsx,.xls" style="display:none">
+<div class="chips" id="chips"></div>
+<div class="log" id="log"></div>
+<div id="results"></div>
+</div>
+<script>
+
+(function(){
+"use strict";
+function N(s){return String(s===null||s===undefined?"":s).replace(/\u00A0/g," ").replace(/[\r\n]+/g," ").replace(/\s+/g," ").trim();}
+function num(v){if(v===null||v===undefined||v==="")return 0;if(typeof v==="number")return isFinite(v)?v:0;var s=String(v).replace(/\u00A0/g,"").replace(/\s/g,"");if(/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");else s=s.replace(",",".");var n=parseFloat(s);return isNaN(n)?0:n;}
+var SEC=/^\d+(\.\d+)*\.?\s*[А-ЯЁ]/;
+var PAGE=/^\d+\s*из(\s+\d+)?$/i;
+function colFind(row,re){for(var j=0;j<row.length;j++){if(re.test(N(row[j]).toLowerCase()))return j;}return -1;}
+function dkey(s){var m=/(\d{2})\.(\d{2})\.(\d{4})/.exec(s||"");return m?m[3]+m[2]+m[1]:"99999999";}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+function parseWorkbook(data,fname){
+  var out={name:fname,from:null,to:null,deals:[],balIn:null,balOut:null,pos:[],lines:[],error:false};
+  var ops={deposit:0,withdraw:0,div:0,coupon:0,tax:0,fee:0,sell:0,buy:0,otherCr:0,otherDb:0,totalCr:0,totalDb:0,cnt:0};
+  out.ops=ops;
+  try{
+  var wb=XLSX.read(data,{type:"array"});
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:""});
+  out.lines.push({c:"info",s:"Файл «"+fname+"»: прочитано строк — "+rows.length});
+  var periodRe=/за период\s+(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})/;
+  outer1:
+  for(var i=0;i<rows.length;i++){var r0=rows[i]||[];
+    for(var j0=0;j0<r0.length;j0++){var m=periodRe.exec(N(r0[j0]));if(m){out.from=m[1];out.to=m[2];break outer1;}}}
+  if(!out.from){out.lines.push({c:"err",s:"не найдена строка периода"});out.error=true;return out;}
+  var section="",dealCols=null,opCols=null,posCols=null,balCols=null,balDone=false,lastCur="RUB";
+  for(var r=0;r<rows.length;r++){
+    var row=rows[r]||[];
+    var skip=false;
+    for(var c=0;c<row.length;c++){if(PAGE.test(N(row[c]))){skip=true;break;}}
+    if(skip)continue;
+    var newSec=null;
+    for(var c2=0;c2<row.length;c2++){var tt=N(row[c2]);if(SEC.test(tt)){newSec=tt;break;}}
+    if(newSec){section=newSec;dealCols=null;opCols=null;posCols=null;balCols=null;balDone=false;continue;}
+    if(section.indexOf("1.1")===0){
+      if(dealCols===null){
+        var k1=colFind(row,/вид сделки/),k2=colFind(row,/код актива/);
+        if(k1>=0&&k2>=0){
+          dealCols={num:colFind(row,/номер сделки/),kind:k1,name:colFind(row,/наименование/),ticker:k2,date:colFind(row,/дата заключения/),price:colFind(row,/цена за единицу/),qty:colFind(row,/количество/),amount:colFind(row,/сумма сделки/),feeB:colFind(row,/комиссия брокера/),feeE:colFind(row,/комиссия биржи/),feeC:colFind(row,/комиссия клир/),feeH:colFind(row,/гербовый сбор/)};
+        }
+        continue;
+      }
+      var tick=N(row[dealCols.ticker]),kind=N(row[dealCols.kind]);
+      if(!tick||!kind)continue;
+      if(kind.indexOf("Покуп")!==0&&kind.indexOf("Продаж")!==0)continue;
+      var amt=num(row[dealCols.amount]);
+      if(!amt)amt=num(row[dealCols.price])*num(row[dealCols.qty]);
+      out.deals.push({num:dealCols.num>=0?N(row[dealCols.num]):"",kind:kind.indexOf("Покуп")===0?"buy":"sell",name:N(row[dealCols.name]),ticker:tick,date:N(row[dealCols.date]),qty:num(row[dealCols.qty]),amount:amt,fees:num(row[dealCols.feeB])+num(row[dealCols.feeE])+num(row[dealCols.feeC])+num(row[dealCols.feeH])});
+      continue;
+    }
+    if(section.indexOf("2")===0){
+      if(opCols===null){
+        if(balCols===null&&colFind(row,/входящий остаток/)>=0){
+          balCols={i:colFind(row,/входящий остаток/),o:colFind(row,/исходящий остаток/)};
+          continue;
+        }
+        if(balCols&&out.balIn===null){
+          var code0="";
+          for(var c3=0;c3<row.length;c3++){var vv=N(row[c3]);if(/^[A-Z]{3}$/.test(vv)){code0=vv;break;}}
+          if(code0==="RUB"){out.balIn=num(row[balCols.i]);out.balOut=num(row[balCols.o]);lastCur="RUB";continue;}
+        }
+        var oh=colFind(row,/операция/);
+        var ok1=colFind(row,/зачислен/),ok2=colFind(row,/списан/);
+        if(oh>=0&&(ok1>=0||ok2>=0)){
+          opCols={op:oh,cr:ok1,db:ok2,note:colFind(row,/примечание/),cur:colFind(row,/валюта/)};
+          continue;
+        }
+        continue;
+      }
+      var op=N(row[opCols.op]);
+      var cr=opCols.cr>=0?num(row[opCols.cr]):0;
+      var db=opCols.db>=0?num(row[opCols.db]):0;
+      var curCell=opCols.cur>=0?N(row[opCols.cur]):"";
+      if(/^[A-Z]{3}$/.test(curCell)&&!op&&!cr&&!db){lastCur=curCell;continue;}
+      var cur=curCell||lastCur;
+      if(cur!=="RUB")continue;
+      if(!op&&!cr&&!db)continue;
+      if(!cr&&!db)continue;
+      var note=opCols.note>=0?N(row[opCols.note]):"";
+      if(note.toLowerCase().indexOf("план")>=0)continue;
+      ops.totalCr+=cr;ops.totalDb+=db;ops.cnt++;
+      var s=(op+" "+note).toLowerCase();
+      if(s.indexOf("налог")>=0)ops.tax+=db;
+      else if(s.indexOf("комиссия")>=0||s.indexOf("вознагражд")>=0)ops.fee+=db;
+      else if(s.indexOf("дивиденд")>=0)ops.div+=cr;
+      else if(s.indexOf("купон")>=0)ops.coupon+=cr;
+      else if(s.indexOf("пополнен")>=0)ops.deposit+=cr;
+      else if(s.indexOf("вывод")>=0)ops.withdraw+=db;
+      else if(s.indexOf("продажа")>=0)ops.sell+=cr;
+      else if(s.indexOf("покупка")>=0)ops.buy+=db;
+      else{ops.otherCr+=cr;ops.otherDb+=db;}
+      continue;
+    }
+    if(section.indexOf("3.1")===0){
+      if(posCols===null){
+        var p1=colFind(row,/код актива/);
+        var q1=colFind(row,/начало периода\s+количество/);
+        var q2=colFind(row,/конец периода\s+количество/);
+        if(q1<0)q1=colFind(row,/начало периода/);
+        if(q2<0)q2=colFind(row,/конец периода/);
+        if(p1>=0&&q1>=0&&q2>=0){
+          posCols={name:colFind(row,/наименование/),ticker:p1,qin:q1,qout:q2};
+        }
+        continue;
+      }
+      var pt=N(row[posCols.ticker]);
+      if(!pt)continue;
+      out.pos.push({name:N(row[posCols.name]),ticker:pt,qin:num(row[posCols.qin]),qout:num(row[posCols.qout])});
+      continue;
+    }
+  }
+  if(dealCols===null)out.lines.push({c:"err",s:"в сделках не найдена колонка «вид сделки»"}),out.error=true;
+  if(out.balIn===null)out.lines.push({c:"err",s:"не найдены остатки (раздел 2)"}),out.error=true;
+  if(posCols===null)out.lines.push({c:"err",s:"не найдена таблица позиций (3.1)"}),out.error=true;
+  if(out.balIn!==null&&ops){
+    var exp=out.balIn+ops.totalCr-ops.totalDb;
+    out.flow={exp:exp,ok:Math.abs(exp-out.balOut)<0.02};
+  }
+  if(!out.error)out.lines.push({c:"ok",s:"Разобрано «"+fname+"»: сделок — "+out.deals.length+", операций — "+ops.cnt+", позиций — "+out.pos.length});
+  }catch(err){out.lines.push({c:"err",s:"Ошибка разбора: "+(err&&err.message?err.message:String(err))});out.error=true;}
+  return out;
+}
+
+var state={files:[],sorted:[],agg:null};
+
+function addFiles(list){
+  Array.prototype.forEach.call(list,function(f){
+    var fr=new FileReader();
+    fr.onload=function(e){
+      var pf;
+      try{pf=parseWorkbook(new Uint8Array(e.target.result),f.name);}
+      catch(err){pf={name:f.name,from:null,to:null,deals:[],pos:[],balIn:null,balOut:null,flow:null,ops:null,error:true,lines:[{c:"err",s:"Ошибка чтения файла: "+(err&&err.message?err.message:String(err))}]};}
+      var idx=-1;
+      for(var i=0;i<state.files.length;i++)if(state.files[i].name===f.name)idx=i;
+      if(idx>=0)state.files[idx]=pf;else state.files.push(pf);
+      recompute();
+    };
+    fr.readAsArrayBuffer(f);
+  });
+}
+
+function recompute(){
+  var files=state.files.filter(function(f){return f.from&&!f.error;});
+  files.sort(function(a,b){var d=dkey(a.from)-dkey(b.from);return d!==0?d:(a.name<b.name?-1:1);});
+  state.sorted=files;
+  var seen={},deals=[];
+  var nameMap={};
+  files.forEach(function(f){
+    f.deals.forEach(function(d){
+      if(!/^RU\d{10}$/.test(d.ticker)&&d.name)nameMap[d.name.toUpperCase()]=d.ticker;
+    });
+    f.pos.forEach(function(p){
+      if(!/^RU\d{10}$/.test(p.ticker)&&p.name)nameMap[p.name.toUpperCase()]=p.ticker;
+    });
+  });
+  files.forEach(function(f){
+    f.deals.forEach(function(d){
+      var k=d.num||[d.date,d.ticker,d.kind,d.qty,d.amount].join("|");
+      if(seen[k])return;seen[k]=1;
+      d.t=/^RU\d{10}$/.test(d.ticker)?(nameMap[d.name.toUpperCase()]||d.ticker):d.ticker;
+      deals.push(d);
+    });
+  });
+  deals.sort(function(a,b){return dkey(a.date)<dkey(b.date)?-1:(dkey(a.date)>dkey(b.date)?1:0);});
+  var lots={},st={};
+  function S(t){if(!st[t])st[t]={sold:0,proceeds:0,cost:0,pnl:0,unkQty:0,unkProceeds:0,bought:0,boughtFees:0,soldFees:0};return st[t];}
+  if(files.length){
+    files[0].pos.forEach(function(p){
+      if(p.qin>0){var t=nameMap[p.name.toUpperCase()]||p.ticker;(lots[t]=lots[t]||[]).push({qty:p.qin,per:NaN,priced:false});}
+    });
+  }
+  deals.forEach(function(d){
+    var s=S(d.t);
+    if(d.kind==="buy"&&d.qty>0){
+      s.bought+=d.amount;s.boughtFees+=d.fees;
+      (lots[d.t]=lots[d.t]||[]).push({qty:d.qty,per:(d.amount+d.fees)/d.qty,priced:true});
+    }else if(d.kind==="sell"&&d.qty>0){
+      s.sold+=d.qty;s.soldFees+=d.fees;
+      var pr=d.amount-d.fees;s.proceeds+=pr;
+      var per=pr/d.qty,rem=d.qty,arr=lots[d.t]||[];
+      while(rem>0&&arr.length){
+        var lot=arr[0],q=Math.min(rem,lot.qty);
+        if(lot.priced){s.cost+=lot.per*q;s.pnl+=(per-lot.per)*q;}
+        else{s.unkQty+=q;s.unkProceeds+=per*q;}
+        lot.qty-=q;rem-=q;
+        if(lot.qty<=0.000001)arr.shift();
+      }
+      if(rem>0){s.unkQty+=rem;s.unkProceeds+=per*rem;}
+    }
+  });
+  var tot={deposit:0,withdraw:0,div:0,coupon:0,tax:0,fee:0,sell:0,buy:0,otherCr:0,otherDb:0};
+  files.forEach(function(f){if(!f.ops)return;["deposit","withdraw","div","coupon","tax","fee","sell","buy","otherCr","otherDb"].forEach(function(k){tot[k]+=f.ops[k]||0;});});
+  var last=files.length?files[files.length-1]:null;
+  var posMap={};
+  if(last)last.pos.forEach(function(p){posMap[p.ticker]=p;});
+  state.agg={files:files,deals:deals,st:st,tot:tot,posMap:posMap,last:last,nameMap:nameMap};
+  render();
+}
+
+function fmt(n){var v=Math.round(n*100)/100;return v.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtq(n){return Math.round(n).toLocaleString("ru-RU");}
+function fmtP(p){return (p*100).toLocaleString("ru-RU",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";}
+function fmtS(n){return (n>=0?"+":"")+fmt(n);}
+function fmtD(s){return s||"";}
+
+function render(){
+  var ch=document.getElementById("chips"),h="";
+  state.files.forEach(function(f,i){
+    h+= '<span class="chip">'+(f.from?fmtD(f.from)+" — "+fmtD(f.to)+" · ":"")+esc(f.name)+' <button data-i="'+i+'" title="убрать">&#10005;</button></span>';
+  });
+  ch.innerHTML=h;
+  Array.prototype.forEach.call(ch.querySelectorAll("button"),function(b){
+    b.onclick=function(){state.files.splice(+b.getAttribute("data-i"),1);recompute();};
+  });
+  var lg="";
+  state.files.forEach(function(f){f.lines.forEach(function(l){lg+= '<div class="'+l.c+'">'+esc(l.s)+"</div>";});});
+  document.getElementById("log").innerHTML=lg;
+  var R=document.getElementById("results");
+  if(!state.agg||!state.sorted.length){R.innerHTML="";return;}
+  R.innerHTML=resultsHtml(state.agg);
+}
+
+function resultsHtml(a){
+  var h="";
+  var tot=a.tot;
+  var rows1=[["Пополнения счёта",tot.deposit,false],["Выводы со счёта",tot.withdraw,true],["Дивиденды (до налога)",tot.div,false],["Купоны",tot.coupon,false],["Налог удержан",tot.tax,true],["Комиссии брокера",tot.fee,true],["Выручка от продаж",tot.sell,false],["Списано на покупки",tot.buy,true]];
+  if(Math.abs(tot.otherCr)+Math.abs(tot.otherDb)>0)rows1.push(["Прочие операции",tot.otherCr-tot.otherDb,false]);
+  h+= '<div class="card"><h2>Итоги периода (по всем файлам)</h2><table><tr><th>Операция</th><th class="r">Сумма, &#8381;</th></tr>';
+  rows1.forEach(function(x){if(Math.abs(x[1])>0.004)h+= "<tr><td>"+x[0]+'</td><td class="num">'+fmt(x[1])+"</td></tr>";});
+  h+= "</table></div>";
+
+  h+= '<div class="card"><h2>Проверка денежного потока</h2>';
+  a.files.forEach(function(f){
+    if(!f.ops||f.balIn===null)return;
+    var cls=f.flow&&f.flow.ok?"ok":"err";
+    var mark=f.flow&&f.flow.ok?"&#10003;":"&#10007; расхождение "+fmt(Math.abs(f.flow.exp-f.balOut))+" &#8381;";
+    h+= '<div class="flow '+cls+'">'+fmtD(f.from)+" — "+fmtD(f.to)+": "+fmt(f.balIn)+" + зачисления "+fmt(f.ops.totalCr)+" &#8722; списания "+fmt(f.ops.totalDb)+" = "+fmt(f.flow.exp)+" &#8381; (в отчёте "+fmt(f.balOut)+") "+mark+"</div>";
+  });
+  for(var i=1;i<a.files.length;i++){
+    var prev=a.files[i-1],nx=a.files[i];
+    if(prev.balOut!==null&&nx.balIn!==null&&Math.abs(prev.balOut-nx.balIn)>0.02)
+      h+= '<div class="flow warn">Между «'+fmtD(prev.to)+'» и «'+fmtD(nx.from)+'» остатки не стыкуются: '+fmt(prev.balOut)+" &#8381; против "+fmt(nx.balIn)+" &#8381; — возможно, пропущен период.</div>";
+  }
+  h+= "</div>";
+
+  var inv=[];
+  Object.keys(a.posMap).forEach(function(t){
+    var p=a.posMap[t];
+    if(p.qout>0){
+      var s=a.st[t];
+      var net=s?(s.bought-s.proceeds+s.boughtFees+s.soldFees):0;
+      inv.push({t:t,name:p.name,q:p.qout,net:net});
+    }
+  });
+  inv.sort(function(x,y){return y.net-x.net;});
+  var totNet=inv.reduce(function(s,x){return s+x.net;},0);
+  h+= '<div class="card"><h2>Вложения в активы (открытые позиции)</h2><table><tr><th>Актив</th><th>Кол-во</th><th class="r">Вложено (нетто), &#8381;</th><th>Доля</th></tr>';
+  inv.forEach(function(x){
+    var p=totNet>0?x.net/totNet:0;
+    h+= "<tr><td><b>"+esc(x.t)+"</b></td><td>"+fmtq(x.q)+'</td><td class="num">'+fmt(x.net)+'</td><td><div class="share"><div class="bar"><div class="fill" style="width:'+Math.min(100,p*100).toFixed(1)+'%"></div></div><span class="pct">'+fmtP(p)+"</span></div></td></tr>";
+  });
+  h+= '<tr class="total"><td>Итого</td><td></td><td class="num">'+fmt(totNet)+"</td><td></td></tr></table>";
+  h+= '<div class="note">Вложено = покупки минус продажи за загруженный период, с комиссиями. Количество и структура позиций берутся из раздела 3.1 последнего отчёта.</div>';
+  if(a.files.length){
+    var pre=a.files[0].pos.filter(function(p){return p.qin>0&&a.posMap[p.ticker]&&a.posMap[p.ticker].qout>0;});
+    if(pre.length)h+= '<div class="wnote">Часть позиций ('+pre.map(function(p){return esc(p.ticker);}).join(", ")+') куплена до начала самого раннего загруженного отчёта — их вложения за период не учтены.</div>';
+  }
+  h+= "</div>";
+
+  var sold=Object.keys(a.st).filter(function(t){return a.st[t].sold>0;});
+  if(sold.length){
+    var list=sold.map(function(t){return {t:t,s:a.st[t],out:a.posMap[t]?a.posMap[t].qout:0};});
+    list.sort(function(x,y){return y.s.pnl-x.s.pnl;});
+    var totalPnl=list.reduce(function(s,x){return s+x.s.pnl;},0);
+    h+= '<div class="card"><h2>Результат по продажам (FIFO)</h2><table><tr><th>Актив</th><th>Продано, шт</th><th class="r">Выручка, &#8381;</th><th class="r">Себестоимость, &#8381;</th><th class="r">PNL, &#8381;</th></tr>';
+    list.forEach(function(x){
+      h+= "<tr><td><b>"+esc(x.t)+"</b></td><td>"+fmtq(x.s.sold)+'</td><td class="num">'+fmt(x.s.proceeds)+'</td><td class="num">'+fmt(x.s.cost)+'</td><td class="num '+(x.s.pnl>=0?"pos":"neg")+'">'+fmtS(x.s.pnl)+"</td></tr>";
+    });
+    h+= '<tr class="total"><td>Итого (учтённая часть)</td><td></td><td></td><td></td><td class="num '+(totalPnl>=0?"pos":"neg")+'">'+fmtS(totalPnl)+"</td></tr></table>";
+    list.forEach(function(x){
+      if(x.s.unkQty>0)h+= '<div class="wnote">PNL по «'+esc(x.t)+'»: '+fmtq(x.s.unkQty)+' шт. проданы из партий, купленных до начала загруженного периода — их результат не учтён (выручка '+fmt(x.s.unkProceeds)+' &#8381;). Загрузите отчёты за предыдущие годы.</div>';
+      else if(x.out>0)h+= '<div class="wnote">«'+esc(x.t)+'»: позиция ещё открыта ('+fmtq(x.out)+' шт.) — учтён только результат проданной части.</div>';
+    });
+    h+= "</div>";
+  }
+  return h;
+}
+
+var drop=document.getElementById("drop"),fi=document.getElementById("fileInput");
+drop.addEventListener("click",function(){fi.click();});
+drop.addEventListener("dragover",function(e){e.preventDefault();drop.classList.add("over");});
+drop.addEventListener("dragleave",function(){drop.classList.remove("over");});
+drop.addEventListener("drop",function(e){e.preventDefault();drop.classList.remove("over");if(e.dataTransfer.files.length)addFiles(e.dataTransfer.files);});
+fi.addEventListener("change",function(){if(fi.files.length)addFiles(fi.files);fi.value="";});
+})();
+</script>
+</body>
+</html>
