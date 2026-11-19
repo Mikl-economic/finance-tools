@@ -1,30 +1,198 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Набор финансовых инструментов</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #24292e; }
-        h1 { text-align: center; }
-        .tool-link { display: block; padding: 16px; margin-bottom: 10px; background: #f6f8fa; color: #0366d6; text-decoration: none; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
-        .tool-link:hover { background: #e1e4e8; }
-        .description { color: #586069; margin-top: 4px; font-size: 0.9em; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор позиции + усреднение</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#181b22; --panel2:#1f232c; --border:#2c313d;
+    --text:#e8eaf0; --muted:#9aa1b0; --accent:#4f8cff; --green:#3ecf8e; --red:#ff5f6d; --yellow:#ffd166;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; padding:16px;}
+  .wrap{max-width:760px; margin:0 auto;}
+  h1{font-size:22px; margin-bottom:4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:16px;}
+  .tabs{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .tab{padding:10px 18px; border-radius:10px; background:var(--panel); border:1px solid var(--border); color:var(--muted); cursor:pointer; font-size:14px;}
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px;}
+  .card h2{font-size:16px; margin-bottom:12px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px;}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font-size:15px;}
+  input:focus{outline:none; border-color:var(--accent);}
+  .result{margin-top:14px; padding-top:14px; border-top:1px solid var(--border);}
+  .row{display:flex; justify-content:space-between; padding:6px 0; font-size:14px;}
+  .row .k{color:var(--muted);}
+  .row .v{font-weight:600; font-variant-numeric:tabular-nums;}
+  .v.pos{color:var(--green);} .v.neg{color:var(--red);}
+  table{width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;}
+  th{color:var(--muted); text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); font-weight:500;}
+  td{padding:6px 8px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums;}
+  td input{padding:6px 8px; font-size:14px;}
+  .btn{margin-top:12px; padding:9px 16px; border-radius:10px; border:1px solid var(--border); background:var(--panel2); color:var(--text); cursor:pointer; font-size:13px;}
+  .btn:hover{border-color:var(--accent);}
+  .btn.del{padding:6px 10px; font-size:12px;}
+  .note{font-size:12px; color:var(--muted); margin-top:10px;}
+  .big{font-size:20px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+</style>
 </head>
 <body>
-    <h1>Набор финансовых инструментов</h1>
-    <p style="text-align: center;">Готовые калькуляторы и трекеры для личных финансов.</p>
-    
-    <a href="fire.html" class="tool-link">🔥 FIRE-калькулятор<br><span class="description">Расчёт финансовой независимости и срока достижения цели</span></a>
-    
-    <a href="mortgage.html" class="tool-link">🏠 Ипотечный калькулятор<br><span class="description">Досрочные платежи, переплата, график платежей</span></a>
-    
-    <a href="budget.html" class="tool-link">📊 Трекер бюджета и портфеля<br><span class="description">Учёт доходов/расходов и мониторинг активов</span></a>
-    
-    <a href="bonds.html" class="tool-link">📜 Дашборд по облигациям<br><span class="description">Купонный календарь и доходность к погашению</span></a>
-    
-    <a href="biz.html" class="tool-link">💼 Управленческая панель<br><span class="description">Дебиторка, кредиторка, статусы и просрочки</span></a>
-    
-    <a href="crypto-calculator.html" class="tool-link">₿ Калькулятор позиций<br><span class="description">Крипта и акции: плечо, маржа, PnL</span></a>
+<div class="wrap">
+  <h1>Калькулятор позиции</h1>
+  <div class="sub">Расчёт позиции и усреднения. Формулы работают локально в браузере, данные никуда не отправляются.</div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('pos', this)">Позиция</div>
+    <div class="tab" onclick="showTab('avg', this)">Усреднение</div>
+  </div>
+
+  <!-- ===== МОДУЛЬ 1: ПОЗИЦИЯ (как в прошлой версии, без изменений) ===== -->
+  <div class="panel active" id="tab-pos">
+    <div class="card">
+      <h2>Ввод позиции</h2>
+      <div class="grid">
+        <div><label>Тикер</label><input id="p_ticker" placeholder="GAZP"></div>
+        <div><label>Цена покупки, ₽</label><input id="p_price" type="number" placeholder="180.5"></div>
+        <div><label>Объём, шт.</label><input id="p_qty" type="number" placeholder="100"></div>
+        <div><label>Комиссия покупки, ₽</label><input id="p_fee_buy" type="number" placeholder="10"></div>
+        <div><label>Комиссия продажи, %</label><input id="p_fee_sell_pct" type="number" step="0.01" placeholder="0.3"></div>
+        <div><label>НДФЛ, %</label><input id="p_tax" type="number" step="0.1" placeholder="13"></div>
+        <div><label>Текущая цена, ₽</label><input id="p_now" type="number" placeholder="195"></div>
+      </div>
+      <div class="result" id="p_out"></div>
+    </div>
+  </div>
+
+  <!-- ===== МОДУЛЬ 2: УСРЕДНЕНИЕ (новый) ===== -->
+  <div class="panel" id="tab-avg">
+    <div class="card">
+      <h2>Ваши сделки</h2>
+      <div class="grid">
+        <div><label>Тикер</label><input id="a_ticker" placeholder="GAZP"></div>
+        <div><label>Цель: средняя цена, ₽ (необязательно)</label><input id="a_target" type="number" placeholder="170"></div>
+        <div><label>Цена докупки для цели, ₽</label><input id="a_buy_price" type="number" placeholder="160"></div>
+      </div>
+      <table id="a_table">
+        <thead><tr><th>#</th><th>Цена, ₽</th><th>Кол-во, шт.</th><th>Комиссия, ₽</th><th></th></tr></thead>
+        <tbody id="a_body"></tbody>
+      </table>
+      <button class="btn" onclick="addTrade()">+ Добавить докупку</button>
+      <div class="result" id="a_out"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- вкладки ---------- */
+function showTab(id, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+const fmt = n => (isFinite(n)?n.toLocaleString('ru-RU',{maximumFractionDigits:2}):'—');
+const val = id => { const e=document.getElementById(id); return e ? parseFloat(e.value.replace(',','.')) : NaN; };
+const cls = n => n>0?'pos':(n<0?'neg':'');
+
+/* ---------- МОДУЛЬ 1: ПОЗИЦИЯ ---------- */
+['p_price','p_qty','p_fee_buy','p_fee_sell_pct','p_tax','p_now'].forEach(id=>{
+  const e=document.getElementById(id);
+  if(e) e.addEventListener('input', calcPosition);
+});
+function calcPosition(){
+  const price=val('p_price'), qty=val('p_qty'), fb=val('p_fee_buy'),
+        fsp=val('p_fee_sell_pct'), tax=val('p_tax'), now=val('p_now');
+  const out=document.getElementById('p_out');
+  if(!isFinite(price)||!isFinite(qty)||price<=0||qty<=0){out.innerHTML='';return;}
+  const cost=price*qty;
+  const avg=cost+ (isFinite(fb)?fb:0);            // затраты всего
+  const avgPrice=avg/qty;                          // средняя с комиссией
+  let pnl=0, pnlPct=0, be=NaN, sellNet=NaN, taxSum=NaN;
+  if(isFinite(now)&&now>0){
+    const sellGross=now*qty;
+    const feeSell=sellGross*(isFinite(fsp)?fsp/100:0);
+    const profitGross=sellGross-avgPrice*qty-feeSell;
+    const t=isFinite(tax)?tax/100:0.13;
+    taxSum=profitGross>0?profitGross*t:0;
+    sellNet=sellGross-feeSell-taxSum;
+    pnl=sellNet-avg;
+    pnlPct=100*pnl/avg;
+    be=(avg/qty)/(1-(isFinite(fsp)?fsp/100:0)*(1-(t>0?1:0)));
+  }
+  let h='<div class="row"><span class="k">Затрачено (с комиссией покупки)</span><span class="v">'+fmt(avg)+' ₽</span></div>'
+       +'<div class="row"><span class="k">Средняя цена с комиссией</span><span class="v big">'+fmt(avgPrice)+' ₽</span></div>';
+  if(isFinite(now)&&now>0){
+    h+='<div class="row"><span class="k">Текущая стоимость позиции</span><span class="v">'+fmt(now*qty)+' ₽</span></div>'
+      +'<div class="row"><span class="k">P/L чистыми (после продажи)</span><span class="v '+cls(pnl)+' big">'+fmt(pnl)+' ₽ ('+fmt(pnlPct)+'%)</span></div>'
+      +'<div class="row"><span class="k">Цена безубытка</span><span class="v">'+fmt(be)+' ₽</span></div>'
+      +'<div class="row"><span class="k">Налог при продаже</span><span class="v">'+fmt(taxSum)+' ₽</span></div>';
+  } else {
+    h+='<div class="row"><span class="k">Введите текущую цену — появятся P/L и безубыток</span><span class="v"></span></div>';
+  }
+  out.innerHTML=h;
+}
+
+/* ---------- МОДУЛЬ 2: УСРЕДНЕНИЕ ---------- */
+let trades=[{p:'',q:'',f:''},{p:'',q:'',f:''}];
+function renderTrades(){
+  const body=document.getElementById('a_body');
+  body.innerHTML='';
+  trades.forEach((t,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+(i+1)+'</td>'
+      +'<td><input type="number" value="'+t.p+'" oninput="setTrade('+i+','+'\'p\''+',this.value)"></td>'
+      +'<td><input type="number" value="'+t.q+'" oninput="setTrade('+i+','+'\'q\''+',this.value)"></td>'
+      +'<td><input type="number" value="'+t.f+'" oninput="setTrade('+i+','+'\'f\''+',this.value)"></td>'
+      +'<td><button class="btn del" onclick="delTrade('+i+')">✕</button></td>';
+    body.appendChild(tr);
+  });
+}
+function setTrade(i,k,v){trades[i][k]=v; calcAveraging();}
+function addTrade(){trades.push({p:'',q:'',f:''}); renderTrades();}
+function delTrade(i){ if(trades.length>1){trades.splice(i,1); renderTrades();} else {trades=[{p:'',q:'',f:''}]; renderTrades();} }
+['a_ticker','a_target','a_buy_price'].forEach(id=>{
+  const e=document.getElementById(id);
+  if(e) e.addEventListener('input', calcAveraging);
+});
+function calcAveraging(){
+  const out=document.getElementById('a_out');
+  let qty=0, cost=0;
+  trades.forEach(t=>{
+    const p=parseFloat(t.p), q=parseFloat(t.q), f=parseFloat(t.f);
+    if(isFinite(p)&&isFinite(q)&&p>0&&q>0){ qty+=q; cost+=p*q+(isFinite(f)?f:0); }
+  });
+  if(qty<=0){out.innerHTML='';return;}
+  const avg=cost/qty;
+  let h='<div class="row"><span class="k">Всего куплено</span><span class="v">'+fmt(qty)+' шт.</span></div>'
+       +'<div class="row"><span class="k">Затрачено всего</span><span class="v">'+fmt(cost)+' ₽</span></div>'
+       +'<div class="row"><span class="k">Средневзвешенная цена (с комиссиями)</span><span class="v big">'+fmt(avg)+' ₽</span></div>';
+  const target=val('a_target'), bp=val('a_buy_price');
+  if(isFinite(target)&&target>0){
+    if(Math.abs(target-avg)<1e-9){
+      h+='<div class="row"><span class="k">Докупать не нужно: средняя уже равна цели</span><span class="v">✔</span></div>';
+    } else if(isFinite(bp)&&bp>0&&target<avg&&bp<target){
+      const n=qty*(avg-target)/(target-bp);
+      const cost2=n*bp;
+      h+='<div class="row"><span class="k">Докупить для средней = '+fmt(target)+' ₽</span><span class="v '+cls(-1)+' big">'+fmt(n)+' шт. на '+fmt(cost2)+' ₽</span></div>'
+        +'<div class="row"><span class="k">Новая средняя после докупки</span><span class="v">'+fmt((cost+cost2)/(qty+n))+' ₽</span></div>';
+    } else {
+      h+='<div class="hint">Для снижения средней: цель должна быть ниже текущей средней, а цена докупки — ниже цели. Например: средняя 180, цель 170, докупка по 160.</div>';
+    }
+  }
+  h+='<div class="note">Если новая цена выше средней — усреднение вверх поднимает безубыток. Вводите данные осознанно.</div>';
+  out.innerHTML=h;
+}
+
+/* init */
+renderTrades();
+calcAveraging();
+calcPosition();
+</script>
 </body>
 </html>
